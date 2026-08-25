@@ -15,9 +15,16 @@ automatically — see [guardrails.md](guardrails.md#context-usage-warning)),
 prints it (free models first, then cheapest-to-most-expensive), and lets you
 pick by number or type an id directly.
 
+Typing something that starts with `/` at the `model>` prompt is rejected
+rather than set as a literal model id — a real OpenRouter id is always
+`vendor/name` shaped and never starts with `/`, so this catches "meant to
+type a REPL command, ended up in the picker" instead of silently switching
+to a nonsense "model."
+
 ## `/model <id>`
 
-Switch straight to a known model id — no fetch, no prompt.
+Switch straight to a known model id — no fetch, no prompt. Same `/`-prefix
+rejection applies here too.
 
 ## `/tools`
 

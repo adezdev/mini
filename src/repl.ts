@@ -224,8 +224,17 @@ function formatToolResult(content: string, isError: boolean): string {
 
 const PICKER_LIMIT = 20;
 
+/** OpenRouter model ids are always `vendor/name` shaped — never a leading slash. */
+function looksLikeModelId(value: string): boolean {
+  return !value.startsWith("/");
+}
+
 async function pickModel(config: Config, rl: Interface, requestedId?: string): Promise<void> {
   if (requestedId) {
+    if (!looksLikeModelId(requestedId)) {
+      console.log(`\x1b[31m"${requestedId}" doesn't look like a model id (did you mean a REPL command?)\x1b[0m\n`);
+      return;
+    }
     config.model = requestedId;
     console.log(`\x1b[2mModel set to ${config.model}\x1b[0m\n`);
     return;
@@ -269,8 +278,13 @@ async function pickModel(config: Config, rl: Interface, requestedId?: string): P
   const asIndex = Number(answer);
   if (Number.isInteger(asIndex) && asIndex >= 1 && asIndex <= shown.length) {
     config.model = shown[asIndex - 1].id;
-  } else {
+  } else if (looksLikeModelId(answer)) {
     config.model = answer;
+  } else {
+    console.log(
+      `\x1b[31m"${answer}" doesn't look like a model id (did you mean a REPL command?) — cancelled.\x1b[0m\n`,
+    );
+    return;
   }
   console.log(`\x1b[2mModel set to ${config.model}\x1b[0m\n`);
 }

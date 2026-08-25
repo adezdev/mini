@@ -500,6 +500,25 @@ test("runReplLoop: /model typing an id directly at the picker prompt sets it ver
   assert.match(output, /Model set to vendor\/typed-directly/);
 });
 
+test("runReplLoop: /model </command> is rejected instead of set as a literal model id", async () => {
+  const session = await Session.create(dir);
+  const config = testConfig({ model: "vendor/unchanged" });
+  const output = await runRepl(config, session, [{ role: "system", content: "sys" }], ["/model /system", "/exit"]);
+
+  assert.equal(config.model, "vendor/unchanged");
+  assert.match(output, /doesn't look like a model id/);
+});
+
+test("runReplLoop: typing a /command at the picker prompt is rejected, not set as a literal model id", async () => {
+  mockFetch();
+  const session = await Session.create(dir);
+  const config = testConfig({ model: "vendor/unchanged" });
+  const output = await runRepl(config, session, [{ role: "system", content: "sys" }], ["/model", "/system", "/exit"]);
+
+  assert.equal(config.model, "vendor/unchanged");
+  assert.match(output, /doesn't look like a model id/);
+});
+
 test("runReplLoop: /model cancels on a blank answer, leaving the model unchanged", async () => {
   mockFetch();
   const session = await Session.create(dir);
