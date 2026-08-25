@@ -15,191 +15,51 @@ telemetry, session backends, a server/protocol layer):
 
 - **One provider**: OpenRouter only (OpenAI-compatible `/chat/completions`), so you
   can point it at free or cheap models without juggling multiple API keys.
-- **Zero runtime dependencies**: only Bun's/Node's standard library (`fetch`,
-  `readline`, `child_process`, `fs`). `typescript`/`bun-types` are dev-only, for
-  editor support and `tsc --noEmit` type-checking. Bun runs the `.ts` sources
-  directly, no build/transpile step needed.
+- **Zero runtime dependencies**: only Bun's/Node's standard library. `typescript`/
+  `bun-types` are dev-only, for editor support and type-checking. Bun runs the `.ts`
+  sources directly, no build/transpile step needed.
 - **Plain-text REPL**, not a differential-render TUI.
-- **Seven tools**: `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`. Enough for
-  real editing/searching/running-things work. `bash` runs in a persistent shell for the
-  session, so `cd` and exported env vars carry over between calls. The other six are
-  confined to the project directory — a path that resolves outside `cwd` is rejected,
-  not followed (doesn't cover symlink escapes or anything reached via `bash` itself).
-  `bash` also refuses a small deny-list of unambiguously destructive commands outright
-  (whole-filesystem/home `rm -rf`, `curl`/`wget` piped into a root shell, force-pushing
-  the repo's default branch) — a floor against an honest mistake, not a sandbox;
-  disable with `MINI_BASH_TRIPWIRES=0`.
+- **Eight tools**, seven for doing the work plus one for explaining itself. Confined
+  to the project directory by default, with a small deny-list against unambiguously
+  destructive commands and automatic per-turn checkpointing — see
+  [docs/guardrails.md](docs/guardrails.md) for what makes this safe to leave running
+  unattended.
 
-## Setup
+## Quick start
 
-Requires [Bun](https://bun.sh) (`sudo pacman -S bun` on Arch, or see bun.sh/docs/installation).
+Requires [Bun](https://bun.sh) `>=1.1`.
 
 ```bash
 bun install
 export OPENROUTER_API_KEY=sk-or-...   # https://openrouter.ai/keys
+bun src/cli.ts
 ```
 
-## Usage
+Or `bun link` to install a `mini` command, or `bun run compile` for a standalone
+`dist/mini` binary. Full walkthrough: [docs/getting-started.md](docs/getting-started.md).
 
-```bash
-bun src/cli.ts                        # interactive REPL
-bun src/cli.ts -p "list this repo"     # one-shot prompt, no REPL
-bun src/cli.ts --model <id>            # override the model for this run
-bun src/cli.ts --resume <sessionId>    # resume a saved session
-bun src/cli.ts --list-sessions         # list sessions saved in this directory
-```
+## Documentation
 
-Or link it as a binary: `bun link` then run `mini` directly. To ship a single
-self-contained executable (no Bun install required on the target machine), run
-`bun run compile`, which produces `dist/mini` (~77MB, includes the Bun runtime).
+- **[docs/getting-started.md](docs/getting-started.md)** — install, setup, first session
+- **[docs/cli.md](docs/cli.md)** — every flag and environment variable
+- **[docs/repl-commands.md](docs/repl-commands.md)** — every interactive `/command`
+- **[docs/tools.md](docs/tools.md)** — the eight tools mini can call
+- **[docs/guardrails.md](docs/guardrails.md)** — checkpointing, self-check, bash
+  tripwires, the filesystem boundary
+- **[docs/architecture.md](docs/architecture.md)** — internals, for contributors
 
-### Model selection
+mini's own docs are also embedded into mini itself — ask it directly ("how do I use
+`/refine`?", "what guardrails do you have?") and it looks them up rather than guessing.
 
-Default model: `nvidia/nemotron-3-super-120b-a12b:free`. Override at startup with
-`--model <id>` or the `MINI_MODEL` env var.
-
-To switch mid-session, use the `/model` command in the REPL:
-
-- `/model`: fetches the current tool-capable model list from OpenRouter, filters to
-  models with at least 200k context (a from-scratch coding session's peak accumulated
-  history routinely lands in the 100k-200k range, and mini doesn't prune automatically),
-  prints it (free models first, then cheapest-to-most-expensive), and lets you pick by
-  number or type an id directly.
-- `/model <id>`: switch straight to a known id, no fetch/prompt.
-
-If you're rate-limited on a free model (OpenRouter's free tier is a shared pool and
-gets 429s under load), `/model` is the fastest way to hop to another one.
-
-### Turn cap
-
-The agent loop stops after 30 turns by default to avoid runaway tool-call loops. If a real
-task needs more room, raise it with `MINI_MAX_TURNS=<n>`.
-
-### Other REPL commands
-
-- `/help`: list all interactive commands
-- `/tools`: list the built-in tools and their descriptions
-- `/system`: print the current system prompt (useful for debugging what's sent)
-- `/cost`: show cumulative token usage for the session, plus an estimated $ cost
-  for the current model (pricing is fetched from OpenRouter on first use and cached)
-- `/sessions`: list saved sessions for this directory (same data as `--list-sessions`)
-- `/resume <id>`: resume a saved session without restarting the process
-- `/clear`: reset the conversation context back to just the system prompt (the
-  session log on disk keeps the full history either way)
-- `/compact`: ask the model to summarize the conversation so far and replace the
-  live context with that summary, to free up space in long sessions
-- `/refine`: ask the model what this session taught it that's worth adding to
-  your project instructions file, and show a diff to confirm before writing
-  anything — never applies silently
-
-mini also prints a one-line warning (once per session, re-armed by `/clear` or
-`/compact`) if a turn's prompt size crosses 80% of the model's context window,
-since mini has no automatic history pruning otherwise.
-
-### Checkpointing
-
-If you're in a git repo with a clean working tree, mini commits whatever a turn
-changed — one commit per turn, with the repo's normal hooks running. If you
-started on your repo's default branch (or a detached HEAD), those commits go on
-a fresh `mini/<session>` branch instead of that branch, so a bad session is a
-`git branch -D` away from never having happened; otherwise they land in place on
-whatever branch you were already on. Nothing is squashed or merged for you —
-review the branch same as you would anyone else's commits. Skips itself
-entirely (silently) outside a git repo, or (with a one-line notice) if the tree
-wasn't clean when the session started.
-
-### Self-check
-
-Whenever a turn's tool calls change a file (a `write`, `edit`, or `bash`
-that didn't error), mini automatically runs one more pass telling the model
-to verify its own work — run whatever this project's checks are and fix
-anything broken — before moving on. It's shown plainly in the transcript
-(prefixed `[auto self-check]`), not hidden, and runs at most once per turn
-even if the fix itself changes more files. Disable it with `MINI_SELF_CHECK=0`
-if you'd rather review changes yourself before mini verifies them (it roughly
-doubles API calls on any turn that touches files).
-
-### Project instructions
-
-Drop a `MINI.md`, `CLAUDE.md`, or `AGENTS.md` in your project root and mini will
-inject it into the system prompt as project-specific context (first match wins,
-in that order — mini's own file first, then this repo's convention, then the
-generic cross-tool fallback).
-
-### Environment variables
-
-Quick reference — each is also covered in context above.
-
-| Variable | Effect |
-| --- | --- |
-| `OPENROUTER_API_KEY` | required; get one at https://openrouter.ai/keys |
-| `MINI_MODEL` | default model override |
-| `MINI_MAX_TURNS` | raise the 30-turn safety cap |
-| `MINI_SELF_CHECK=0` | disable the automatic self-check pass after file changes |
-| `MINI_BASH_TRIPWIRES=0` | disable the bash deny-list for unambiguously destructive commands |
-
-## Design notes
-
-- **`src/llm/openrouter.ts`**: raw `fetch` + hand-rolled SSE parsing
-  (`src/llm/sse.ts`). Tool-call argument fragments arrive across many stream
-  chunks keyed by a numeric `index` (not `id`); `src/llm/tool-call-accumulator.ts`
-  buffers and JSON-parses them once the stream signals completion, marking
-  truncated (`finish_reason: "length"`) calls as malformed rather than crashing.
-- **`src/agent/loop.ts`**: the core loop. Stream a response, run any tool calls,
-  feed results back in, repeat until a turn produces zero tool calls (a 30-turn
-  safety cap by default; see `MINI_MAX_TURNS` above).
-- **`src/tools/edit.ts`**: each `oldText` must match the file's content exactly
-  once; all edits in one call are computed against the original content (not
-  chained), then returned as a unified diff (`src/tools/diff.ts`, a small
-  dependency-free LCS-based differ).
-- **`src/session/jsonl.ts`**: sessions are append-only JSONL files under
-  `.mini/sessions/<id>.jsonl`: a header line, then one line per message.
-
-## Tests, linting, and type checking
+## Development
 
 ```bash
 bun run check   # typecheck + lint + test, all at once (what CI runs)
-bun test
 ```
 
-(`bunfig.toml` scopes test discovery to `./test`; otherwise `bun test` would also
-crawl anything else in the working tree, including large gitignored local directories.)
-
-Covers the SSE parser, the tool-call delta accumulator (including the
-truncated-arguments edge case), `edit`'s exact-match-once semantics, `grep`'s
-matching/ignoring behavior, session persistence, arg parsing, the model picker's
-ranking/formatting, and the read/write/ls/bash tools. All pure-function/tmpdir
-unit tests written against `node:test`/`node:assert`, which Bun runs natively. No
-network calls.
-
-```bash
-bun run test:coverage
-```
-
-Prints a per-file coverage table using Bun's built-in coverage reporter (no extra
-dependency needed).
-
-Linting and formatting run on [Biome](https://biomejs.dev): `bun run lint` (`biome check .`)
-and `bun run format` (`biome format --write .`). `biome.json` is tuned to match the codebase's
-existing style rather than the other way around.
-
-## Versioning and releases
-
-Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org/)
-(`feat: ...`, `fix(scope): ...`, etc.; see `CLAUDE.md` for the full rules).
-`scripts/version.ts` reads the commits since the last `v*` tag and figures out the
-semver bump: any `!` breaking marker is major, `feat` is minor, `fix` is patch,
-everything else doesn't move the version.
-
-```bash
-bun run version           # print what the next bump would be, don't touch anything
-bun run release            # bump package.json, commit, tag (local only)
-bun run release -- --push  # also push the commit and tag
-bun run release -- --publish  # push + build dist/mini + cut a GitHub release via gh
-```
-
-The actual bump/commit/tag is `bun pm version` (built into Bun, no extra dependency).
-`scripts/version.ts` just decides *which* bump to hand it.
+See [docs/architecture.md](docs/architecture.md) for testing conventions, and
+[CLAUDE.md](CLAUDE.md) for contributor/agent-facing project conventions (commit
+message format, versioning, release process).
 
 ## License
 

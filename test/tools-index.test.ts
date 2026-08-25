@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { allTools, toolRegistry } from "../src/tools/index.js";
 
-test("allTools registers exactly the seven built-in tools", () => {
-  assert.deepEqual(allTools.map((t) => t.name).sort(), ["bash", "edit", "find", "grep", "ls", "read", "write"]);
+test("allTools registers exactly the eight built-in tools", () => {
+  assert.deepEqual(allTools.map((t) => t.name).sort(), ["bash", "docs", "edit", "find", "grep", "ls", "read", "write"]);
 });
 
 test("toolRegistry defaults to indexing allTools by name", () => {
