@@ -160,6 +160,14 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
   one file is ever loaded, never merged. `/refine` (`src/refine.ts`) uses this same resolver
   so it always edits whichever file actually got loaded into the system prompt this session,
   never a hardcoded name.
+- **System prompt self-awareness** (`src/system-prompt.ts`, `buildSystemPrompt`): besides the
+  tool list, the prompt tells the model about mini's own automatic harness behaviors —
+  checkpointing, the auto self-check pass, and the bash tripwires — so it isn't confused when
+  a `[auto self-check]` turn appears unprompted, doesn't try to `git commit` changes mini
+  already checkpointed, and doesn't retry a refused destructive command verbatim. Static text,
+  not conditioned on whether checkpointing/tripwires are actually active this session (that
+  state isn't known yet at prompt-build time — `initCheckpointing` runs later, inside
+  `runReplLoop`/`runOneShot` — and precision isn't the point here, general awareness is).
 - **Context usage warning** (`src/repl.ts`, `checkContextUsage`): mini has no automatic history
   pruning, so a long session can walk right up to a model's context limit and get a provider
   error mid-task. After each turn, once that turn's prompt token count crosses 80% of the

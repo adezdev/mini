@@ -37,6 +37,13 @@ test("lists each tool's name and description, and the cwd", async () => {
   assert.match(prompt, new RegExp(`Current working directory: ${dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
 });
 
+test("tells the model about its own automatic checkpointing, self-check, and tripwires", async () => {
+  const prompt = await buildSystemPrompt(fakeTools, dir);
+  assert.match(prompt, /\[auto self-check\]/);
+  assert.match(prompt, /commits your changes/);
+  assert.match(prompt, /refuses a small set of unambiguously destructive commands/);
+});
+
 test("omits <project_instructions> when no project context file exists", async () => {
   const prompt = await buildSystemPrompt(fakeTools, dir);
   assert.ok(!prompt.includes("<project_instructions>"));

@@ -40,6 +40,17 @@ export async function buildSystemPrompt(tools: AgentTool[], cwd: string): Promis
     "Use tools whenever a task requires inspecting or changing the filesystem or running commands. " +
       "Prefer the `edit` tool for targeted changes over rewriting whole files with `write`. " +
       "Be concise in your final responses to the user.",
+    "",
+    "A few things mini does automatically — expect them, don't treat them as surprises or as " +
+      "the user intervening: after a turn where you changed files, you may immediately get a " +
+      "follow-up turn asking you to verify and fix your own work (prefixed `[auto self-check]`) " +
+      "— treat it as a normal continuation. If the project is a clean git repository, mini also " +
+      "commits your changes after each turn on its own (on a dedicated branch if the session " +
+      "started on the repo's default branch), so you don't need to run `git commit` yourself " +
+      "unless the user asks for something specific there. The `bash` tool refuses a small set of " +
+      "unambiguously destructive commands outright (e.g. a whole-filesystem `rm -rf /`, or " +
+      "force-pushing the repo's default branch) — if refused, don't retry the same command, use " +
+      "a narrower one that does what you actually meant.",
   ];
 
   const projectInstructions = await loadProjectInstructions(cwd);
