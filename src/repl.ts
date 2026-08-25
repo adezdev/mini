@@ -5,6 +5,7 @@ import type { Interface } from "node:readline/promises";
 import { createInterface } from "node:readline/promises";
 import { runAgentLoop } from "./agent/loop.js";
 import type { Message } from "./agent/types.js";
+import { type CheckpointState, commitCheckpointIfDirty, initCheckpointing } from "./checkpoint.js";
 import type { Config } from "./config.js";
 import { fetchModels, formatModelLine, type ModelInfo, rankForPicker } from "./models.js";
 import { computeRefinement } from "./refine.js";
@@ -12,11 +13,29 @@ import { listSessions, Session } from "./session/jsonl.js";
 import { buildSystemPrompt, findProjectInstructionsPath } from "./system-prompt.js";
 import { allTools } from "./tools/index.js";
 
+function printCheckpointInit(state: CheckpointState): void {
+  if (state.reason === "new-branch") {
+    const from = state.originalBranch ? `was on ${state.originalBranch}` : "was on a detached HEAD";
+    console.log(`\x1b[2mCheckpointing enabled — created and switched to ${state.branch} (${from}).\x1b[0m\n`);
+  } else if (state.reason === "in-place") {
+    console.log(`\x1b[2mCheckpointing enabled on ${state.branch}.\x1b[0m\n`);
+  } else if (state.reason === "dirty") {
+    console.log("\x1b[33mUncommitted changes present — checkpointing disabled this session.\x1b[0m\n");
+  }
+}
+
+function printCheckpointSummary(state: CheckpointState): void {
+  if (state.enabled && state.commitCount > 0) {
+    console.log(`\x1b[2mCheckpointing: ${state.commitCount} commit(s) on ${state.branch}.\x1b[0m\n`);
+  }
+}
+
 async function runTurn(
   config: Config,
   session: Session,
   messages: Message[],
   userInput: string,
+  checkpoint: CheckpointState,
   onUsage?: (promptTokens: number, completionTokens: number) => void,
 ): Promise<void> {
   const userMessage: Message = { role: "user", content: userInput };
@@ -31,6 +50,7 @@ async function runTurn(
     model: config.model,
     messages,
     tools: allTools,
+    cwd: config.cwd,
     maxTurns: config.maxTurns,
     onEvent(event) {
       switch (event.type) {
@@ -57,6 +77,11 @@ async function runTurn(
 
   for (let i = beforeLength; i < messages.length; i++) {
     await session.appendMessage(messages[i]);
+  }
+
+  const result = await commitCheckpointIfDirty(checkpoint, userInput);
+  if (result.error) {
+    console.error(`\x1b[31mCheckpoint commit failed: ${result.error}\x1b[0m\n`);
   }
 }
 
@@ -231,6 +256,9 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
   let lastPromptTokens = 0;
   let warnedContextFull = false;
 
+  const checkpoint = await initCheckpointing(config.cwd, session.id);
+  printCheckpointInit(checkpoint);
+
   try {
     while (true) {
       let line: string;
@@ -366,6 +394,8 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
           if (answer === "y" || answer === "yes") {
             await writeFile(instructionsPath, refinement.newContent, "utf-8");
             console.log(`\x1b[2m${fileName} updated.\x1b[0m\n`);
+            const result = await commitCheckpointIfDirty(checkpoint, `/refine: ${fileName}`);
+            if (result.error) console.error(`\x1b[31mCheckpoint commit failed: ${result.error}\x1b[0m\n`);
           } else {
             console.log("Discarded.\n");
           }
@@ -376,7 +406,7 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
       }
 
       try {
-        await runTurn(config, session, messages, trimmed, (p, c) => {
+        await runTurn(config, session, messages, trimmed, checkpoint, (p, c) => {
           totalPromptTokens += p;
           totalCompletionTokens += c;
           lastPromptTokens = p;
@@ -393,6 +423,7 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
       }
     }
   } finally {
+    printCheckpointSummary(checkpoint);
     rl.close();
   }
 }
@@ -426,5 +457,8 @@ export async function runOneShot(
     messages.push(systemMessage);
     await session.appendMessage(systemMessage);
   }
-  await runTurn(config, session, messages, prompt);
+  const checkpoint = await initCheckpointing(config.cwd, session.id);
+  printCheckpointInit(checkpoint);
+  await runTurn(config, session, messages, prompt, checkpoint);
+  printCheckpointSummary(checkpoint);
 }

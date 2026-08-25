@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -263,6 +264,43 @@ test("runReplLoop: a turn with a tool call prints the tool header and result, th
   assert.match(output, /› ls\(/);
   assert.match(output, /done/);
   assert.ok(messages.some((m) => m.role === "toolResult" && m.toolName === "ls"));
+});
+
+test("runReplLoop: checkpoints a tool call that changes files, on a git repo", async () => {
+  const repo = await mkdtemp(join(tmpdir(), "mini-repl-checkpoint-"));
+  try {
+    const git = (args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf-8" });
+    git(["init", "-q", "-b", "main"]);
+    git(["config", "user.email", "test@example.com"]);
+    git(["config", "user.name", "Test"]);
+    git(["config", "commit.gpgsign", "false"]);
+    await writeFile(join(repo, "README.md"), "hello");
+    git(["add", "-A"]);
+    git(["commit", "-q", "-m", "initial"]);
+
+    mockChatSequence([
+      toolCallSse("call_1", "write", { path: "new.txt", content: "hi" }),
+      textSseWithUsage("done", 1, 1),
+    ]);
+    const session = await Session.create(repo);
+    const messages: any[] = [{ role: "system", content: "sys" }];
+    const output = await runRepl(testConfig({ cwd: repo }), session, messages, ["write a file", "/exit"]);
+
+    assert.match(output, /Checkpointing enabled — created and switched to mini\//);
+    assert.match(output, /Checkpointing: 1 commit\(s\) on mini\//);
+    assert.match(git(["log", "-1", "--format=%s"]), /mini checkpoint: write a file/);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test("runReplLoop: no checkpointing notices in a non-git working directory", async () => {
+  mockChatSequence([toolCallSse("call_1", "ls", { path: "." }), textSseWithUsage("done", 1, 1)]);
+  const session = await Session.create(dir);
+  const messages: any[] = [{ role: "system", content: "sys" }];
+  const output = await runRepl(testConfig(), session, messages, ["list files", "/exit"]);
+
+  assert.ok(!output.includes("Checkpointing"));
 });
 
 test("runReplLoop: /cost reports cumulative usage and estimated cost after a turn", async () => {

@@ -92,6 +92,18 @@ mini also prints a one-line warning (once per session, re-armed by `/clear` or
 `/compact`) if a turn's prompt size crosses 80% of the model's context window,
 since mini has no automatic history pruning otherwise.
 
+### Checkpointing
+
+If you're in a git repo with a clean working tree, mini commits whatever a turn
+changed — one commit per turn, with the repo's normal hooks running. If you
+started on your repo's default branch (or a detached HEAD), those commits go on
+a fresh `mini/<session>` branch instead of that branch, so a bad session is a
+`git branch -D` away from never having happened; otherwise they land in place on
+whatever branch you were already on. Nothing is squashed or merged for you —
+review the branch same as you would anyone else's commits. Skips itself
+entirely (silently) outside a git repo, or (with a one-line notice) if the tree
+wasn't clean when the session started.
+
 ### Project instructions
 
 Drop a `MINI.md`, `CLAUDE.md`, or `AGENTS.md` in your project root and mini will

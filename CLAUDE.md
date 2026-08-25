@@ -116,7 +116,12 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
 - **Agent loop cap:** `runAgentLoop` stops after `maxTurns` (default 30, overridable via
   `MINI_MAX_TURNS`) so a runaway tool-call loop can't run forever. It mutates the `messages`
   array in place and reports progress through an `onEvent` callback (`text_delta`,
-  `tool_call_start/end`, `usage`, `turn_end`).
+  `tool_call_start/end`, `usage`, `turn_end`). Every tool call runs against `RunAgentLoopOptions.cwd`
+  (defaults to `process.cwd()` if omitted) — always pass `config.cwd` explicitly from real
+  callers; it only happens to equal `process.cwd()` in production because `loadConfig` captures
+  it at startup, and a caller that forgets this silently falls back to the real process's cwd
+  instead of the one it meant, which is exactly what happened before this was a parameter (see
+  `checkpoint.ts` below — the bug surfaced when a test nearly wrote a stray file into this repo).
 - **CLI arg parsing** is factored into `src/cli-args.ts` (`parseArgs`) separately from
   `src/cli.ts`'s `main()` specifically so it's importable/testable without triggering the
   CLI's side effects (`main()` runs immediately on import of `cli.ts`).
@@ -138,6 +143,25 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
   REPL prints a one-line nudge toward `/compact`. Fires once per session and re-arms on
   `/clear`/`/compact` — a nudge, not an automatic action, matching mini's stance of never
   silently mutating conversation state on the user's behalf.
+- **Checkpointing** (`src/checkpoint.ts`): commits whatever a turn changed, per turn, so a
+  mistake is `git revert`-able instead of buried in a pile of diffs — part of the walk-away-
+  autonomy guardrail work (roadmap in project memory). `initCheckpointing(cwd, sessionId)`
+  runs once per session and decides whether/where:
+  - No-ops silently on a non-repo or any git error; disables with a one-line notice if the
+    starting tree isn't clean (checkpointing covers mini's own changes, not pre-existing WIP).
+  - If the current branch is the repo's default (`origin/HEAD`'s target, else a local
+    `main`/`master` if one exists, else — no established convention to go on — the current
+    branch itself) or HEAD is detached, checkpoint commits go on a fresh `mini/<sessionId
+    prefix>` branch instead of polluting it. Otherwise commits land in place on whatever
+    branch was already checked out. `--resume`/re-running with the same session id reuses the
+    same `mini/` branch if it still exists.
+  - `commitCheckpointIfDirty(state, promptText)` runs after every turn (and after a confirmed
+    `/refine` write): `git add`/`git commit` scoped to exclude `.mini/` (mini's own session
+    logs land there and would otherwise make the tree look dirty on every single turn) with
+    the repo's normal hooks running — not skipped with `--no-verify`, since a hook is itself a
+    guardrail. A hook rejection is reported as a turn-level error, not silently swallowed.
+  - Deliberately not built: auto-squashing, auto-merging into the real branch, auto-deleting a
+    branch after a bad run. All manual, on purpose.
 
 ## Documentation
 
