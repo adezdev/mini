@@ -103,6 +103,23 @@ async function lookupModelPricing(id: string): Promise<ModelInfo | undefined> {
   return modelInfoCache.find((m) => m.id === id);
 }
 
+const CONTEXT_WARNING_THRESHOLD = 0.8;
+
+/**
+ * mini has no automatic history pruning, so a long session can walk right up
+ * to the model's context limit and get a provider error mid-task. This warns
+ * once a turn's prompt size crosses a threshold, using the same cached model
+ * list /cost already fetches (silently no-ops if that fetch fails).
+ */
+async function checkContextUsage(config: Config, promptTokens: number): Promise<string | null> {
+  if (promptTokens <= 0) return null;
+  const info = await lookupModelPricing(config.model);
+  if (!info || info.contextLength <= 0) return null;
+  const ratio = promptTokens / info.contextLength;
+  if (ratio < CONTEXT_WARNING_THRESHOLD) return null;
+  return `\x1b[33mContext usage at ${Math.round(ratio * 100)}% (${promptTokens}/${info.contextLength} tokens) — consider /compact.\x1b[0m\n`;
+}
+
 async function printCost(config: Config, usage: { promptTokens: number; completionTokens: number }): Promise<void> {
   const total = usage.promptTokens + usage.completionTokens;
   console.log(
@@ -211,6 +228,8 @@ async function pickModel(config: Config, rl: Interface, requestedId?: string): P
 export async function runReplLoop(config: Config, messages: Message[], session: Session, rl: Interface): Promise<void> {
   let totalPromptTokens = 0;
   let totalCompletionTokens = 0;
+  let lastPromptTokens = 0;
+  let warnedContextFull = false;
 
   try {
     while (true) {
@@ -302,6 +321,8 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
         messages.push({ role: "system", content: systemPrompt });
         totalPromptTokens = 0;
         totalCompletionTokens = 0;
+        lastPromptTokens = 0;
+        warnedContextFull = false;
         console.log("\x1b[2mContext cleared.\x1b[0m\n");
         continue;
       }
@@ -316,6 +337,8 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
           const summaryMessage: Message = { role: "user", content: `Summary of earlier conversation:\n\n${summary}` };
           messages.push(summaryMessage);
           await session.appendMessage(summaryMessage);
+          lastPromptTokens = 0;
+          warnedContextFull = false;
           console.log(`\x1b[2mHistory compacted (context now ${messages.length} messages).\x1b[0m\n`);
         } catch (err) {
           console.error(`\x1b[31mCompact failed: ${(err as Error).message}\x1b[0m`);
@@ -356,7 +379,15 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
         await runTurn(config, session, messages, trimmed, (p, c) => {
           totalPromptTokens += p;
           totalCompletionTokens += c;
+          lastPromptTokens = p;
         });
+        if (!warnedContextFull) {
+          const warning = await checkContextUsage(config, lastPromptTokens);
+          if (warning) {
+            warnedContextFull = true;
+            console.log(warning);
+          }
+        }
       } catch (err) {
         console.error(`\x1b[31mError: ${(err as Error).message}\x1b[0m`);
       }

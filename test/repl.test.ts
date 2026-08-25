@@ -282,6 +282,39 @@ test("runReplLoop: /cost before any turn reports zero usage", async () => {
   assert.match(output, /Session usage: 0 prompt \+ 0 completion = 0 tokens/);
 });
 
+test("runReplLoop: warns once when a turn's prompt tokens cross the context threshold", async () => {
+  mockChatSequence([textSseWithUsage("ok", 210_000, 10), textSseWithUsage("ok again", 220_000, 10)]);
+  const session = await Session.create(dir);
+  const messages: any[] = [{ role: "system", content: "sys" }];
+  const output = await runRepl(testConfig(), session, messages, ["hi", "hi again", "/exit"]);
+
+  const warnings = output.match(/Context usage at \d+%/g) ?? [];
+  assert.equal(warnings.length, 1);
+});
+
+test("runReplLoop: no context warning when usage stays well under the threshold", async () => {
+  mockChatSequence([textSseWithUsage("ok", 100, 10)]);
+  const session = await Session.create(dir);
+  const messages: any[] = [{ role: "system", content: "sys" }];
+  const output = await runRepl(testConfig(), session, messages, ["hi", "/exit"]);
+
+  assert.ok(!output.includes("Context usage"));
+});
+
+test("runReplLoop: /compact resets the context warning so it can fire again", async () => {
+  mockChatSequence([
+    textSseWithUsage("ok", 210_000, 10),
+    textSseWithUsage("Summary of the chat.", 5, 5),
+    textSseWithUsage("ok", 210_000, 10),
+  ]);
+  const session = await Session.create(dir);
+  const messages: any[] = [{ role: "system", content: "sys" }];
+  const output = await runRepl(testConfig(), session, messages, ["hi", "/compact", "hi again", "/exit"]);
+
+  const warnings = output.match(/Context usage at \d+%/g) ?? [];
+  assert.equal(warnings.length, 2);
+});
+
 test("runReplLoop: /compact replaces history with a system message plus a summary", async () => {
   mockChatSequence([textReplySse("hi"), textSseWithUsage("Summary of the chat.", 5, 5)]);
   const session = await Session.create(dir);

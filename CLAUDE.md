@@ -123,6 +123,13 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
   one file is ever loaded, never merged. `/refine` (`src/refine.ts`) uses this same resolver
   so it always edits whichever file actually got loaded into the system prompt this session,
   never a hardcoded name.
+- **Context usage warning** (`src/repl.ts`, `checkContextUsage`): mini has no automatic history
+  pruning, so a long session can walk right up to a model's context limit and get a provider
+  error mid-task. After each turn, once that turn's prompt token count crosses 80% of the
+  model's `contextLength` (from the same cached `/models` list `/cost` already fetches), the
+  REPL prints a one-line nudge toward `/compact`. Fires once per session and re-arms on
+  `/clear`/`/compact` — a nudge, not an automatic action, matching mini's stance of never
+  silently mutating conversation state on the user's behalf.
 
 ## Documentation
 

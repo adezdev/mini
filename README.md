@@ -86,6 +86,10 @@ task needs more room, raise it with `MINI_MAX_TURNS=<n>`.
   your project instructions file, and show a diff to confirm before writing
   anything — never applies silently
 
+mini also prints a one-line warning (once per session, re-armed by `/clear` or
+`/compact`) if a turn's prompt size crosses 80% of the model's context window,
+since mini has no automatic history pruning otherwise.
+
 ### Project instructions
 
 Drop a `MINI.md`, `CLAUDE.md`, or `AGENTS.md` in your project root and mini will
