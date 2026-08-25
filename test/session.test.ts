@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -42,6 +43,28 @@ test("listSessions returns saved sessions newest first", async () => {
   assert.ok(ids.includes(first.id));
   assert.ok(ids.includes(second.id));
   assert.ok(ids.indexOf(second.id) < ids.indexOf(first.id));
+});
+
+test("Session.create writes a .mini/.gitignore that keeps .mini/ out of git entirely", async () => {
+  const repo = await mkdtemp(join(tmpdir(), "mini-session-gitignore-"));
+  try {
+    const git = (args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf-8" });
+    git(["init", "-q", "-b", "main"]);
+
+    await Session.create(repo);
+
+    const gitignore = await readFile(join(repo, ".mini", ".gitignore"), "utf-8");
+    assert.equal(gitignore, "*\n");
+
+    const status = git(["status", "--porcelain"]);
+    assert.equal(status.trim(), "");
+
+    git(["add", "-A"]);
+    const staged = git(["status", "--porcelain"]);
+    assert.equal(staged.trim(), "");
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
 });
 
 test("listSessions returns an empty array when no sessions directory exists", async () => {

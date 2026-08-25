@@ -17,6 +17,13 @@ behavior lives in [guardrails.md](guardrails.md), [tools.md](tools.md), and
 - `src/tools/`: the eight built-in tools plus shared helpers (`lines.ts`,
   `diff.ts`, `walk.ts`, `path-guard.ts`).
 - `src/session/jsonl.ts`: append-only JSONL session persistence.
+  `Session.create` also drops a `.mini/.gitignore` (just `*`) the first time
+  `.mini/` is created in a project, so mini's own session logs never show up
+  in `git status`/`git add .` — not just for checkpointing's own commits
+  (which already exclude `.mini/` via pathspec) but for the model's own
+  manual git commands too. Without this, a model running `git init` as part
+  of a task and then `git add .` will happily stage its own session log into
+  the user's first commit — observed in practice, not hypothetical.
 - `src/git.ts`: small `runGit`/`resolveProtectedBranch`/`getCurrentBranch`
   helpers shared by `checkpoint.ts` and `tools/tripwires.ts`.
 - `src/checkpoint.ts`: per-turn checkpoint commits.

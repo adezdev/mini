@@ -1,7 +1,7 @@
 // Copyright 2026 adezdev. Apache-2.0 License. See LICENSE.
 
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readdir, readFile, stat } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Message } from "../agent/types.js";
 
@@ -27,6 +27,22 @@ function sessionPath(cwd: string, id: string): string {
   return join(sessionsDir(cwd), `${id}.jsonl`);
 }
 
+/**
+ * A `.gitignore` containing just `*`, dropped inside `.mini/` itself so the whole directory
+ * (session logs included) never shows up in `git status`/`git add .` — for the model's own git
+ * commands, not just checkpointing's (which already excludes `.mini/` via pathspec on its own
+ * commits, but that protection doesn't extend to the model driving git manually through bash).
+ * A project that runs `git init` mid-session would otherwise happily stage mini's own session
+ * log right into the user's first commit.
+ */
+async function ensureMiniGitignore(cwd: string): Promise<void> {
+  try {
+    await writeFile(join(cwd, ".mini", ".gitignore"), "*\n", "utf-8");
+  } catch {
+    // best-effort — a session still works fine without this
+  }
+}
+
 export class Session {
   constructor(
     public readonly id: string,
@@ -36,6 +52,7 @@ export class Session {
   static async create(cwd: string): Promise<Session> {
     const id = randomUUID();
     await mkdir(sessionsDir(cwd), { recursive: true });
+    await ensureMiniGitignore(cwd);
     const filePath = sessionPath(cwd, id);
     const header: SessionHeader = { kind: "header", id, createdAt: new Date().toISOString(), cwd };
     await appendFile(filePath, `${JSON.stringify(header)}\n`, "utf-8");
