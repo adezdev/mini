@@ -1,0 +1,7 @@
+reference/
+node_modules/
+dist/
+.mini/
+*.log
+.claude/
+

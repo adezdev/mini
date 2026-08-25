@@ -1,0 +1,32 @@
+{
+  "name": "mini",
+  "version": "0.1.0",
+  "description": "A from-scratch, zero-dependency coding agent CLI for solo developers, talking to OpenRouter.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "mini": "src/cli.ts"
+  },
+  "scripts": {
+    "start": "bun src/cli.ts",
+    "dev": "bun --watch src/cli.ts",
+    "test": "bun test --isolate",
+    "test:coverage": "bun test --isolate --coverage",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "check": "bun run typecheck && bun run lint && bun run test",
+    "compile": "bun build --compile --outfile dist/mini src/cli.ts",
+    "version": "bun scripts/version.ts",
+    "release": "bun scripts/release.ts"
+  },
+  "engines": {
+    "bun": ">=1.1"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@biomejs/biome": "2.5.10",
+    "bun-types": "^1.3.14",
+    "typescript": "^5.7.2"
+  }
+}
