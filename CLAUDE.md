@@ -56,7 +56,7 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
   bogus `test() inside another test()` error (a known Bun limitation, oven-sh/bun#5090). Both
   `test` and `test:coverage` scripts already pass the flag.
 - `bunfig.toml` scopes `bun test` discovery to `./test`: without it, a bare `bun test` would
-  also crawl `reference/pi/`, a huge unrelated monorepo, and hang.
+  also crawl anything else in the working tree, including large gitignored local directories.
 - Requires Bun and `OPENROUTER_API_KEY` set for actually running the agent (not needed for
   tests: network calls are mocked via `globalThis.fetch` swapping, no mocking library).
 
@@ -99,6 +99,11 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
 - **CLI arg parsing** is factored into `src/cli-args.ts` (`parseArgs`) separately from
   `src/cli.ts`'s `main()` specifically so it's importable/testable without triggering the
   CLI's side effects (`main()` runs immediately on import of `cli.ts`).
+- **Model picker filtering** (`src/models.ts`, `rankForPicker`): only lists tool-capable
+  models with at least `MIN_CONTEXT_LENGTH` (200k) context. mini has no context-window
+  awareness or automatic history pruning beyond the manual `/compact`/`/clear` commands, and
+  a real coding session's peak accumulated history routinely lands in the 100k-200k range, so
+  smaller-context models would fail mid-session with a provider context-length error.
 
 ## Documentation
 

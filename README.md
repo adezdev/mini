@@ -112,7 +112,7 @@ bun test
 ```
 
 (`bunfig.toml` scopes test discovery to `./test`; otherwise `bun test` would also
-crawl `reference/pi/`, a huge monorepo.)
+crawl anything else in the working tree, including large gitignored local directories.)
 
 Covers the SSE parser, the tool-call delta accumulator (including the
 truncated-arguments edge case), `edit`'s exact-match-once semantics, `grep`'s
