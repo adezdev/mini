@@ -88,7 +88,19 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
     which mini doesn't have. A command like `exit` also kills the shell itself before the
     trailing sentinel echo can run; `runExclusive` falls back to the process's own `exit` event
     in that case instead of hanging until timeout. Each command must be syntactically complete
-    on its own — no unterminated quotes/heredocs waiting for more input.
+    on its own — no unterminated quotes/heredocs waiting for more input. Before any of that,
+    `bashTool.execute` checks the command against `tripwires.ts`'s `checkTripwire` — a small,
+    high-confidence deny-list (whole-filesystem/home `rm -rf`, `curl`/`wget` piped into a root
+    shell) that refuses the command outright, without ever spawning it. Fourth and last item of
+    the walk-away-autonomy guardrail work (roadmap in project memory): a floor against an
+    *honest* mistake (a hallucinated bad path), not a jailbreak trying to obfuscate around it —
+    that needs a real sandbox, out of scope here. No in-band override (no `force: true` on the
+    tool call — a model that could flip it would learn to always flip it); the only escape hatch
+    is `MINI_BASH_TRIPWIRES=0`, set by the human before the session starts, read live via
+    `tripwiresEnabled()` rather than cached at import (same lesson as `selfCheckEnabled()`).
+    Force-push-to-protected-branch was considered and deliberately deferred — it needs real git
+    state (reusing `checkpoint.ts`'s branch-protection resolution) for a case that's already
+    less catastrophic than the other two, since it's usually recoverable via `reflog`.
   - `edit.ts`: each `oldText` must match the file's content **exactly once**; when a call has
     multiple edits, all are computed against the *original* content (not chained
     sequentially; see `applyEdits`, kept as a pure function separate from file I/O for

@@ -68,3 +68,9 @@ test("spawn failure (e.g. a nonexistent working directory) is reported as an err
   assert.equal(result.isError, true);
   assert.match(result.content, /Failed to start command/);
 });
+
+test("refuses a tripwire command without ever spawning it", async () => {
+  const result = await bashTool.execute({ command: "rm -rf /" }, process.cwd());
+  assert.equal(result.isError, true);
+  assert.match(result.content, /Refused/);
+});

@@ -2,6 +2,7 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 import type { AgentTool } from "../agent/types.js";
+import { checkTripwire, tripwiresEnabled } from "./tripwires.js";
 
 const MAX_OUTPUT_BYTES = 64 * 1024;
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -161,6 +162,11 @@ export const bashTool: AgentTool = {
     required: ["command"],
   },
   async execute(args: { command: string; timeout?: number }, cwd: string) {
+    if (tripwiresEnabled()) {
+      const tripped = checkTripwire(args.command);
+      if (tripped) return { content: tripped, isError: true };
+    }
+
     const timeoutMs = args.timeout ?? DEFAULT_TIMEOUT_MS;
     const result = await shell.run(args.command, cwd, timeoutMs);
 
