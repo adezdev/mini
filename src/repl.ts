@@ -204,7 +204,7 @@ Commands:
   /resume <id>       Resume a saved session (replaces current context)
   /clear             Reset the conversation context (keeps the session log)
   /compact           Summarize the conversation so far to free up context
-  /refine            Propose CLAUDE.md updates based on this session, with a diff to confirm
+  /refine            Propose project-instructions updates based on this session, with a diff to confirm
   /exit, /quit       Quit
 `;
 

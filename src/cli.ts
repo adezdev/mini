@@ -28,14 +28,15 @@ In an interactive session:
   /resume <id>                   Resume a saved session (replaces current context)
   /clear                         Reset the conversation context
   /compact                       Summarize history so far to free up context
-  /refine                        Propose CLAUDE.md updates from this session, with a diff to confirm
+  /refine                        Propose project-instructions updates from this session, with a diff to confirm
   /exit                          Quit
 
 Environment:
-  OPENROUTER_API_KEY   required, get one at https://openrouter.ai/keys
-  MINI_MODEL            optional default model override
-  MINI_SELF_CHECK=0     disable the automatic self-check pass after file changes
-  MINI_BASH_TRIPWIRES=0 disable the bash deny-list for unambiguously destructive commands
+  OPENROUTER_API_KEY      required, get one at https://openrouter.ai/keys
+  MINI_MODEL              optional default model override
+  MINI_MAX_TURNS          raise the 30-turn safety cap
+  MINI_SELF_CHECK=0       disable the automatic self-check pass after file changes
+  MINI_BASH_TRIPWIRES=0   disable the bash deny-list for unambiguously destructive commands
 `);
 }
 

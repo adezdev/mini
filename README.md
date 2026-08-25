@@ -126,6 +126,18 @@ inject it into the system prompt as project-specific context (first match wins,
 in that order — mini's own file first, then this repo's convention, then the
 generic cross-tool fallback).
 
+### Environment variables
+
+Quick reference — each is also covered in context above.
+
+| Variable | Effect |
+| --- | --- |
+| `OPENROUTER_API_KEY` | required; get one at https://openrouter.ai/keys |
+| `MINI_MODEL` | default model override |
+| `MINI_MAX_TURNS` | raise the 30-turn safety cap |
+| `MINI_SELF_CHECK=0` | disable the automatic self-check pass after file changes |
+| `MINI_BASH_TRIPWIRES=0` | disable the bash deny-list for unambiguously destructive commands |
+
 ## Design notes
 
 - **`src/llm/openrouter.ts`**: raw `fetch` + hand-rolled SSE parsing
