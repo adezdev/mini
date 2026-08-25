@@ -17,6 +17,8 @@ export interface RunAgentLoopOptions {
   model: string;
   messages: Message[];
   tools: AgentTool[];
+  /** Working directory passed to every tool call. Defaults to process.cwd(). */
+  cwd?: string;
   onEvent: (event: LoopEvent) => void;
   signal?: AbortSignal;
   maxTurns?: number;
@@ -29,7 +31,16 @@ export interface RunAgentLoopOptions {
  * appending the assistant/tool-result messages produced along the way.
  */
 export async function runAgentLoop(options: RunAgentLoopOptions): Promise<void> {
-  const { apiKey, model, messages, tools, onEvent, signal, maxTurns = DEFAULT_MAX_TURNS } = options;
+  const {
+    apiKey,
+    model,
+    messages,
+    tools,
+    onEvent,
+    signal,
+    maxTurns = DEFAULT_MAX_TURNS,
+    cwd = process.cwd(),
+  } = options;
   const registry = new Map(tools.map((t) => [t.name, t]));
 
   for (let turn = 0; turn < maxTurns; turn++) {
@@ -82,7 +93,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<void> 
         };
       } else {
         try {
-          const result = await tool.execute(call.args, process.cwd());
+          const result = await tool.execute(call.args, cwd);
           resultMessage = {
             role: "toolResult",
             toolCallId: call.id,
