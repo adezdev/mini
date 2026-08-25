@@ -65,6 +65,35 @@ function normalizeToLF(text: string): { normalized: string; usedCRLF: boolean } 
   return { normalized: text.replace(/\r\n/g, "\n"), usedCRLF };
 }
 
+/**
+ * Weaker models occasionally send `edits` as a JSON-encoded string instead of
+ * an actual array (or otherwise malformed). Reject it up front with a
+ * specific, actionable message instead of letting `.map` throw a raw
+ * "X is not a function" the model has nothing to work with.
+ */
+function validateEdits(edits: unknown): { ok: true; edits: EditSpec[] } | { ok: false; error: string } {
+  if (!Array.isArray(edits)) {
+    const hint =
+      typeof edits === "string"
+        ? " (looks like a JSON-encoded string — pass an actual array, not a stringified one)"
+        : "";
+    return { ok: false, error: `edits must be an array of {oldText, newText} objects, got ${typeof edits}${hint}.` };
+  }
+  if (edits.length === 0) {
+    return { ok: false, error: "edits must contain at least one {oldText, newText} object." };
+  }
+  for (let i = 0; i < edits.length; i++) {
+    const e = edits[i];
+    if (typeof e !== "object" || e === null || typeof e.oldText !== "string" || typeof e.newText !== "string") {
+      return {
+        ok: false,
+        error: `edits[${i}] must be an object with string "oldText" and "newText" fields, got ${JSON.stringify(e)?.slice(0, 100)}.`,
+      };
+    }
+  }
+  return { ok: true, edits: edits as EditSpec[] };
+}
+
 export const editTool: AgentTool = {
   name: "edit",
   description:
@@ -89,7 +118,13 @@ export const editTool: AgentTool = {
     },
     required: ["path", "edits"],
   },
-  async execute(args: { path: string; edits: EditSpec[] }, cwd: string) {
+  async execute(args: { path: string; edits: unknown }, cwd: string) {
+    if (typeof args.path !== "string") {
+      return { content: `path must be a string, got ${typeof args.path}.`, isError: true };
+    }
+    const validated = validateEdits(args.edits);
+    if (!validated.ok) return { content: validated.error, isError: true };
+
     const guarded = resolveInRoot(cwd, args.path);
     if (!guarded.ok) return { content: guarded.error, isError: true };
     const filePath = guarded.path;
@@ -101,7 +136,7 @@ export const editTool: AgentTool = {
     }
 
     const { normalized, usedCRLF } = normalizeToLF(raw);
-    const normalizedEdits = args.edits.map((e) => ({
+    const normalizedEdits = validated.edits.map((e) => ({
       oldText: e.oldText.replace(/\r\n/g, "\n"),
       newText: e.newText.replace(/\r\n/g, "\n"),
     }));

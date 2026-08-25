@@ -78,7 +78,13 @@ Notable ones:
   once**; when a call has multiple edits, all are computed against the
   *original* content (not chained sequentially; see `applyEdits`, kept as a
   pure function separate from file I/O for testing), then returned as a
-  unified diff.
+  unified diff. `validateEdits` rejects a malformed `edits` argument (not an
+  array — including a JSON-*encoded string* of one, a mistake weaker models
+  make — missing `oldText`/`newText`, an empty array) with a message naming
+  the specific problem, before `applyEdits` ever runs; a non-string `path`
+  gets the same treatment. Both were previously unhandled `TypeError`s
+  surfaced verbatim as "Tool threw an error: ..." — technically caught by
+  `loop.ts` so they didn't crash mini, but useless for the model to act on.
 - **`lines.ts`**: `splitLines()` is used everywhere file content gets split
   into lines instead of a bare `.split("\n")`: a trailing newline
   terminates the last line rather than starting a phantom empty one,

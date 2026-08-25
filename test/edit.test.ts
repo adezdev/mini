@@ -135,3 +135,32 @@ test("rejects a path that escapes the project directory", async () => {
   assert.equal(result.isError, true);
   assert.match(result.content, /escapes the project directory/);
 });
+
+test("rejects edits sent as a JSON-encoded string instead of an array, with an actionable message", async () => {
+  const result = await editTool.execute(
+    { path: "small.txt", edits: JSON.stringify([{ oldText: "a", newText: "b" }]) },
+    dir,
+  );
+  assert.equal(result.isError, true);
+  assert.match(result.content, /must be an array/);
+  assert.match(result.content, /JSON-encoded string/);
+});
+
+test("rejects an empty edits array", async () => {
+  const result = await editTool.execute({ path: "small.txt", edits: [] }, dir);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /at least one/);
+});
+
+test("rejects an edit missing oldText/newText instead of throwing", async () => {
+  const result = await editTool.execute({ path: "small.txt", edits: [{ newText: "b" }] }, dir);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /edits\[0\]/);
+  assert.match(result.content, /oldText/);
+});
+
+test("rejects a non-string path instead of throwing", async () => {
+  const result = await editTool.execute({ path: 123, edits: [{ oldText: "a", newText: "b" }] }, dir);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /path must be a string/);
+});

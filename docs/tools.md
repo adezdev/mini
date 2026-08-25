@@ -23,7 +23,10 @@ appear **exactly once** in the file's current content — an ambiguous or
 missing match is reported as an error, not guessed at. Multiple edits in one
 call are computed against the file's *original* content, not chained, so
 they can't interfere with each other's line numbers. Returns a unified diff
-of the change.
+of the change. Malformed args (`edits` sent as something other than an
+array, a missing `oldText`/`newText`, a non-string `path`) are rejected
+with a specific message describing what was wrong, rather than throwing a
+raw JS error the model can't act on.
 
 ## `bash`
 
