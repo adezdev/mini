@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { bashTool } from "../src/tools/bash.js";
+import { after, test } from "node:test";
+import { __resetBashShellForTests, bashTool } from "../src/tools/bash.js";
+
+after(() => __resetBashShellForTests());
 
 test("returns stdout for a successful command", async () => {
   const result = await bashTool.execute({ command: "echo hello" }, process.cwd());
@@ -37,6 +39,28 @@ test("a command that produces no output reports '(no output)'", async () => {
   const result = await bashTool.execute({ command: "true" }, process.cwd());
   assert.ok(!result.isError);
   assert.equal(result.content, "(no output)");
+});
+
+test("cd persists across calls with the same cwd argument", async () => {
+  const first = await bashTool.execute({ command: "cd /tmp" }, process.cwd());
+  assert.ok(!first.isError);
+  const second = await bashTool.execute({ command: "pwd" }, process.cwd());
+  assert.match(second.content.trim(), /\/tmp$/);
+});
+
+test("exported env vars persist across calls with the same cwd argument", async () => {
+  await bashTool.execute({ command: "export MINI_TEST_VAR=hello" }, process.cwd());
+  const result = await bashTool.execute({ command: "echo $MINI_TEST_VAR" }, process.cwd());
+  assert.equal(result.content.trim(), "hello");
+});
+
+test("a timed-out command resets the shell, but a later call still works", async () => {
+  const timedOut = await bashTool.execute({ command: "sleep 5", timeout: 100 }, process.cwd());
+  assert.equal(timedOut.isError, true);
+  assert.match(timedOut.content, /shell session reset/);
+  const retry = await bashTool.execute({ command: "echo back" }, process.cwd());
+  assert.ok(!retry.isError);
+  assert.match(retry.content, /back/);
 });
 
 test("spawn failure (e.g. a nonexistent working directory) is reported as an error", async () => {

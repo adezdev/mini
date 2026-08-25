@@ -21,7 +21,8 @@ telemetry, session backends, a server/protocol layer):
   directly, no build/transpile step needed.
 - **Plain-text REPL**, not a differential-render TUI.
 - **Seven tools**: `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`. Enough for
-  real editing/searching/running-things work.
+  real editing/searching/running-things work. `bash` runs in a persistent shell for the
+  session, so `cd` and exported env vars carry over between calls.
 
 ## Setup
 

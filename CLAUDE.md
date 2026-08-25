@@ -76,6 +76,16 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
   `bun run version` to preview the next bump, `bun run release` to cut it.
 - **Tool contracts:** each tool in `src/tools/` is an `AgentTool`: `{name, description,
   parameters (JSON Schema), execute(args, cwd)}`. Notable ones:
+  - `bash.ts`: runs commands against one persistent shell process kept alive for the tool
+    instance's lifetime (not a fresh spawn per call), so `cd` and exported env vars carry over
+    between calls. Commands are framed with a sentinel echo (`echo "<token>:$?"`) written to
+    the shell's stdin to recover output boundaries and exit codes without a wrapper process. A
+    timeout kills the shell outright and the next call transparently respawns it — interrupting
+    just the foreground job needs real job control (a pty, or non-portable tools like `setsid`),
+    which mini doesn't have. A command like `exit` also kills the shell itself before the
+    trailing sentinel echo can run; `runExclusive` falls back to the process's own `exit` event
+    in that case instead of hanging until timeout. Each command must be syntactically complete
+    on its own — no unterminated quotes/heredocs waiting for more input.
   - `edit.ts`: each `oldText` must match the file's content **exactly once**; when a call has
     multiple edits, all are computed against the *original* content (not chained
     sequentially; see `applyEdits`, kept as a pure function separate from file I/O for
