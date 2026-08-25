@@ -30,16 +30,31 @@ const EXCLUDE_MINI_DIR = ["--", ".", ":!.mini"];
 /**
  * Decides whether checkpoint commits should happen this session and where.
  * Silently disables on a non-repo, a git error, or (deliberately) anything
- * we can't confidently reason about. Requires a clean starting tree — this
- * checkpoints mini's own changes, not whatever WIP was already there.
+ * we can't confidently reason about.
+ *
+ * Requires a clean starting tree by default — this checkpoints mini's own
+ * changes, not whatever WIP was already there. Pass `requireCleanStart:
+ * false` when re-attempting activation mid-session (the directory wasn't a
+ * repo yet at session start, e.g. the model just ran `git init` as part of
+ * a "set up a new project" task): by then any dirty state is presumably
+ * this very turn's own not-yet-committed work, not foreign WIP predating
+ * the session, so it's fine to activate and let the caller's next
+ * `commitCheckpointIfDirty` capture it as the first checkpoint.
  */
-export async function initCheckpointing(cwd: string, sessionId: string): Promise<CheckpointState> {
+export async function initCheckpointing(
+  cwd: string,
+  sessionId: string,
+  options?: { requireCleanStart?: boolean },
+): Promise<CheckpointState> {
+  const requireCleanStart = options?.requireCleanStart ?? true;
   const repoCheck = await runGit(cwd, ["rev-parse", "--is-inside-work-tree"]);
   if (!repoCheck.ok || repoCheck.stdout.trim() !== "true") return disabled(cwd);
 
-  const status = await runGit(cwd, ["status", "--porcelain", ...EXCLUDE_MINI_DIR]);
-  if (!status.ok) return disabled(cwd);
-  if (status.stdout.trim() !== "") return disabled(cwd, "dirty");
+  if (requireCleanStart) {
+    const status = await runGit(cwd, ["status", "--porcelain", ...EXCLUDE_MINI_DIR]);
+    if (!status.ok) return disabled(cwd);
+    if (status.stdout.trim() !== "") return disabled(cwd, "dirty");
+  }
 
   const currentBranch = await getCurrentBranch(cwd);
   const protectedBranch = await resolveProtectedBranch(cwd, currentBranch);

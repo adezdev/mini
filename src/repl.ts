@@ -39,6 +39,25 @@ const SELF_CHECK_PROMPT =
   "project's own checks (tests, lint, typecheck, build — whatever this project actually uses) " +
   "and fix anything broken before finishing. If there's no obvious way to check, say so briefly.";
 
+/**
+ * Checkpointing is decided once at session start, which misses the common "new project" case:
+ * the directory wasn't a git repo yet, so it's disabled — but the model might `git init` it
+ * moments later as part of the very task it was asked to do. Retried before every commit
+ * attempt (cheap: a `git rev-parse` that fails fast for a non-repo) so it turns on the moment
+ * the directory actually becomes checkpoint-able, without waiting for a new session.
+ */
+async function maybeActivateCheckpointing(
+  config: Config,
+  session: Session,
+  checkpoint: CheckpointState,
+): Promise<void> {
+  if (checkpoint.enabled) return;
+  const refreshed = await initCheckpointing(config.cwd, session.id, { requireCleanStart: false });
+  if (!refreshed.enabled) return;
+  Object.assign(checkpoint, refreshed);
+  printCheckpointInit(checkpoint);
+}
+
 /** Runs one prompt through the agent loop, persists it, and checkpoints. Returns whether a tool call changed files. */
 async function runPass(
   config: Config,
@@ -91,6 +110,7 @@ async function runPass(
     await session.appendMessage(messages[i]);
   }
 
+  await maybeActivateCheckpointing(config, session, checkpoint);
   const result = await commitCheckpointIfDirty(checkpoint, promptText);
   if (result.error) {
     console.error(`\x1b[31mCheckpoint commit failed: ${result.error}\x1b[0m\n`);
@@ -438,6 +458,7 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
           if (answer === "y" || answer === "yes") {
             await writeFile(instructionsPath, refinement.newContent, "utf-8");
             console.log(`\x1b[2m${fileName} updated.\x1b[0m\n`);
+            await maybeActivateCheckpointing(config, session, checkpoint);
             const result = await commitCheckpointIfDirty(checkpoint, `/refine: ${fileName}`);
             if (result.error) console.error(`\x1b[31mCheckpoint commit failed: ${result.error}\x1b[0m\n`);
           } else {

@@ -139,21 +139,38 @@ at import time can't be toggled or tested within one process).
 
 ## Checkpointing internals
 
-`initCheckpointing(cwd, sessionId)` in `src/checkpoint.ts` runs once per
-session and decides whether/where checkpoint commits happen — see
+`initCheckpointing(cwd, sessionId, options?)` in `src/checkpoint.ts` decides
+whether/where checkpoint commits happen — see
 [guardrails.md](guardrails.md#checkpointing) for the user-facing behavior.
 Implementation notes:
 
 - `commitCheckpointIfDirty(state, promptText)` runs after every turn (and
   after a confirmed `/refine` write): `git add`/`git commit` scoped to
-  exclude `.mini/` via git pathspec (`-- . ':!.mini'`) — mini's own session
-  logs land under `.mini/sessions/*.jsonl` inside the project directory the
-  moment a session starts, and without this exclusion every session would
-  look dirty from the very first turn, defeating the clean-tree gate.
+  exclude `.mini/` via git pathspec (`-- . ':!.mini'`) — belt-and-suspenders
+  alongside `session/jsonl.ts`'s `.mini/.gitignore`, which now keeps
+  `.mini/` out of `git status` entirely.
 - Branch resolution (`resolveProtectedBranch`, `getCurrentBranch`) lives in
   `src/git.ts`, not `checkpoint.ts` itself, specifically so
   `tools/tripwires.ts`'s force-push check can reuse it instead of
   duplicating the logic.
+- `initCheckpointing` isn't only called once per session. `repl.ts`'s
+  `maybeActivateCheckpointing` re-attempts it (cheap: a `git rev-parse`
+  that fails fast for a non-repo) before every `commitCheckpointIfDirty`
+  call, as long as `checkpoint.enabled` is still false — otherwise the
+  common "set up a new project" case is invisible to checkpointing
+  entirely: the directory isn't a repo at session start, so it disables
+  once and stays disabled even after the model runs `git init` moments
+  later as part of the very task it was asked to do. The retry passes
+  `requireCleanStart: false`: the "require a clean starting tree" rule
+  exists to avoid sweeping in WIP that predates the session, but by the
+  time a mid-session retry succeeds, any dirty state is presumably this
+  very turn's own not-yet-committed work — refusing to activate on that
+  basis would be exactly backwards, so the retry activates anyway and lets
+  the immediately-following `commitCheckpointIfDirty` capture it as the
+  first checkpoint. `Object.assign(checkpoint, refreshed)` mutates the
+  caller's existing `CheckpointState` object in place (not a reassignment)
+  since `runReplLoop`/`runOneShot` hold their own reference to it for the
+  end-of-session summary.
 
 ## Self-check internals
 

@@ -65,6 +65,13 @@ commit. Not built, on purpose: auto-squashing, auto-merging into your real
 branch, or auto-deleting a branch after a bad run — those all stay a manual
 decision on your end.
 
+**Starting a brand-new project**: if the directory isn't a git repository
+yet, checkpointing just stays disabled — until the model runs `git init`
+itself as part of the task, at which point checkpointing activates right
+then, mid-session, no restart needed. This is the common "set up a new
+project" case, so it's covered explicitly rather than left to a session
+restart.
+
 ## Self-check
 
 Whenever a turn's tool calls include a successful `write`, `edit`, or

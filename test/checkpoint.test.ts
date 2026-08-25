@@ -203,3 +203,38 @@ test("resuming the same session id reuses its existing mini/ branch", async () =
     await rm(repo, { recursive: true, force: true });
   }
 });
+
+test("requireCleanStart: false activates despite a dirty tree, so the caller's next commit captures it", async () => {
+  const repo = await mkdtemp(join(tmpdir(), "mini-checkpoint-lazy-"));
+  try {
+    initRepo(repo, "main");
+    await writeFile(join(repo, "README.md"), "hello");
+    git(repo, ["add", "-A"]);
+    git(repo, ["commit", "-q", "-m", "initial"]);
+    await writeFile(join(repo, "untracked.txt"), "dirty");
+
+    const strict = await initCheckpointing(repo, "session-strict");
+    assert.equal(strict.enabled, false);
+    assert.equal(strict.reason, "dirty");
+
+    const lenient = await initCheckpointing(repo, "session-lenient", { requireCleanStart: false });
+    assert.equal(lenient.enabled, true);
+
+    const result = await commitCheckpointIfDirty(lenient, "first checkpoint");
+    assert.equal(result.committed, true);
+    assert.match(git(repo, ["log", "-1", "--format=%s"]), /mini checkpoint: first checkpoint/);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test("requireCleanStart: false still disables on a directory that isn't a git repo at all", async () => {
+  const notARepo = await mkdtemp(join(tmpdir(), "mini-checkpoint-lazy-norepo-"));
+  try {
+    const state = await initCheckpointing(notARepo, "session-lazy-norepo", { requireCleanStart: false });
+    assert.equal(state.enabled, false);
+    assert.equal(state.reason, "silent");
+  } finally {
+    await rm(notARepo, { recursive: true, force: true });
+  }
+});

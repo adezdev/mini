@@ -294,6 +294,32 @@ test("runReplLoop: checkpoints a tool call that changes files, on a git repo", a
   }
 });
 
+test("runReplLoop: checkpointing activates mid-session once the model runs git init itself", async () => {
+  const repo = await mkdtemp(join(tmpdir(), "mini-repl-checkpoint-lazy-"));
+  try {
+    const git = (args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf-8" });
+
+    mockChatSequence([
+      toolCallSse("call_1", "bash", {
+        command:
+          "git init -q -b main && git config user.email t@t.com && git config user.name T && git config commit.gpgsign false",
+      }),
+      toolCallSse("call_2", "write", { path: "README.md", content: "hello" }),
+      textSseWithUsage("done", 1, 1),
+    ]);
+    const session = await Session.create(repo);
+    const messages: any[] = [{ role: "system", content: "sys" }];
+    // Not a git repo when the session starts, so initCheckpointing disables up front; it only
+    // activates because maybeActivateCheckpointing retries after the turn's own git init.
+    const output = await runRepl(testConfig({ cwd: repo }), session, messages, ["set up a project", "/exit"]);
+
+    assert.match(output, /Checkpointing enabled/);
+    assert.match(git(["log", "-1", "--format=%s"]), /mini checkpoint: set up a project/);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test("runReplLoop: no checkpointing notices in a non-git working directory", async () => {
   mockChatSequence([toolCallSse("call_1", "ls", { path: "." }), textSseWithUsage("done", 1, 1)]);
   const session = await Session.create(dir);
