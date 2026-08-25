@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -131,7 +131,7 @@ async function runRepl(config: Config, session: Session, messages: any[], inputs
 
   const capture = (text: string): void => {
     output += text;
-    if (text === "> " || text === "model> ") {
+    if (text === "> " || text === "model> " || text.endsWith("] ")) {
       if (idx < inputs.length) {
         input.push(`${inputs[idx++]}\n`);
       } else if (!ended) {
@@ -293,6 +293,75 @@ test("runReplLoop: /compact replaces history with a system message plus a summar
   assert.equal(messages[0].role, "system");
   assert.equal(messages[1].role, "user");
   assert.match(messages[1].content, /Summary of the chat\./);
+});
+
+test("runReplLoop: /refine proposes CLAUDE.md edits and applies them on confirmation", async () => {
+  const refineDir = await mkdtemp(join(tmpdir(), "mini-repl-refine-"));
+  try {
+    await writeFile(join(refineDir, "CLAUDE.md"), "# Notes\n\nOriginal line.\n");
+    mockChatSequence([
+      textReplySse("hi"),
+      textReplySse('[{"oldText":"Original line.\\n","newText":"Original line.\\nNew line from refine.\\n"}]'),
+    ]);
+    const session = await Session.create(refineDir);
+    const messages: any[] = [{ role: "system", content: "sys" }];
+    const output = await runRepl(testConfig({ cwd: refineDir }), session, messages, ["hi", "/refine", "y", "/exit"]);
+
+    assert.match(output, /CLAUDE\.md updated/);
+    const updated = await readFile(join(refineDir, "CLAUDE.md"), "utf-8");
+    assert.match(updated, /New line from refine\./);
+  } finally {
+    await rm(refineDir, { recursive: true, force: true });
+  }
+});
+
+test("runReplLoop: /refine discards proposed edits when not confirmed", async () => {
+  const refineDir = await mkdtemp(join(tmpdir(), "mini-repl-refine-"));
+  try {
+    await writeFile(join(refineDir, "CLAUDE.md"), "# Notes\n\nOriginal line.\n");
+    mockChatSequence([
+      textReplySse("hi"),
+      textReplySse('[{"oldText":"Original line.\\n","newText":"Original line.\\nNew line.\\n"}]'),
+    ]);
+    const session = await Session.create(refineDir);
+    const messages: any[] = [{ role: "system", content: "sys" }];
+    const output = await runRepl(testConfig({ cwd: refineDir }), session, messages, ["hi", "/refine", "n", "/exit"]);
+
+    assert.match(output, /Discarded/);
+    const unchanged = await readFile(join(refineDir, "CLAUDE.md"), "utf-8");
+    assert.equal(unchanged, "# Notes\n\nOriginal line.\n");
+  } finally {
+    await rm(refineDir, { recursive: true, force: true });
+  }
+});
+
+test("runReplLoop: /refine reports when there's nothing to add", async () => {
+  const refineDir = await mkdtemp(join(tmpdir(), "mini-repl-refine-"));
+  try {
+    await writeFile(join(refineDir, "CLAUDE.md"), "# Notes\n");
+    mockChatSequence([textReplySse("hi"), textReplySse("[]")]);
+    const session = await Session.create(refineDir);
+    const messages: any[] = [{ role: "system", content: "sys" }];
+    const output = await runRepl(testConfig({ cwd: refineDir }), session, messages, ["hi", "/refine", "/exit"]);
+
+    assert.match(output, /Nothing to refine/);
+  } finally {
+    await rm(refineDir, { recursive: true, force: true });
+  }
+});
+
+test("runReplLoop: /refine reports when no project instructions file exists", async () => {
+  const refineDir = await mkdtemp(join(tmpdir(), "mini-repl-refine-none-"));
+  try {
+    mockFetch();
+    const session = await Session.create(refineDir);
+    const messages: any[] = [{ role: "system", content: "sys" }];
+    const output = await runRepl(testConfig({ cwd: refineDir }), session, messages, ["/refine", "/exit"]);
+
+    assert.match(output, /No AGENTS\.md\/CLAUDE\.md\/MINI\.md found/);
+  } finally {
+    await rm(refineDir, { recursive: true, force: true });
+  }
 });
 
 test("runReplLoop: /model with no id fetches and picks by number", async () => {

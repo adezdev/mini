@@ -4,18 +4,27 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AgentTool } from "./agent/types.js";
 
-const PROJECT_CONTEXT_FILES = ["AGENTS.md", "CLAUDE.md", "MINI.md"];
+// Most mini-specific wins: its own native file first, then this repo's actual
+// convention (CLAUDE.md), then the generic cross-tool fallback.
+const PROJECT_CONTEXT_FILES = ["MINI.md", "CLAUDE.md", "AGENTS.md"];
 
-async function loadProjectInstructions(cwd: string): Promise<string | null> {
+/** Finds whichever project instructions file mini would load, first match wins. */
+export async function findProjectInstructionsPath(cwd: string): Promise<string | null> {
   for (const name of PROJECT_CONTEXT_FILES) {
+    const path = join(cwd, name);
     try {
-      const content = await readFile(join(cwd, name), "utf-8");
-      return content;
+      await readFile(path, "utf-8");
+      return path;
     } catch {
       // try next
     }
   }
   return null;
+}
+
+async function loadProjectInstructions(cwd: string): Promise<string | null> {
+  const path = await findProjectInstructionsPath(cwd);
+  return path ? readFile(path, "utf-8") : null;
 }
 
 export async function buildSystemPrompt(tools: AgentTool[], cwd: string): Promise<string> {

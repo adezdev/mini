@@ -53,28 +53,28 @@ test("injects AGENTS.md content into <project_instructions> when present", async
   }
 });
 
-test("prefers AGENTS.md over CLAUDE.md over MINI.md when multiple exist", async () => {
+test("prefers MINI.md over CLAUDE.md over AGENTS.md when multiple exist", async () => {
   const multiDir = await mkdtemp(join(tmpdir(), "mini-system-prompt-multi-"));
   try {
     await writeFile(join(multiDir, "AGENTS.md"), "from agents");
     await writeFile(join(multiDir, "CLAUDE.md"), "from claude");
     await writeFile(join(multiDir, "MINI.md"), "from mini");
     const prompt = await buildSystemPrompt(fakeTools, multiDir);
-    assert.match(prompt, /from agents/);
+    assert.match(prompt, /from mini/);
     assert.ok(!prompt.includes("from claude"));
-    assert.ok(!prompt.includes("from mini"));
+    assert.ok(!prompt.includes("from agents"));
   } finally {
     await rm(multiDir, { recursive: true, force: true });
   }
 });
 
-test("falls back to MINI.md when AGENTS.md and CLAUDE.md are absent", async () => {
-  const miniDir = await mkdtemp(join(tmpdir(), "mini-system-prompt-mini-"));
+test("falls back to AGENTS.md when MINI.md and CLAUDE.md are absent", async () => {
+  const agentsOnlyDir = await mkdtemp(join(tmpdir(), "mini-system-prompt-agents-only-"));
   try {
-    await writeFile(join(miniDir, "MINI.md"), "mini-only instructions");
-    const prompt = await buildSystemPrompt(fakeTools, miniDir);
-    assert.match(prompt, /mini-only instructions/);
+    await writeFile(join(agentsOnlyDir, "AGENTS.md"), "agents-only instructions");
+    const prompt = await buildSystemPrompt(fakeTools, agentsOnlyDir);
+    assert.match(prompt, /agents-only instructions/);
   } finally {
-    await rm(miniDir, { recursive: true, force: true });
+    await rm(agentsOnlyDir, { recursive: true, force: true });
   }
 });

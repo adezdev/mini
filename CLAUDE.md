@@ -25,6 +25,9 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
   - `src/models.ts`, `src/system-prompt.ts`, `src/cli-args.ts`, `src/repl.ts`, `src/cli.ts`:
     model listing/picker, system prompt assembly, CLI arg parsing, the REPL, and the entry
     point.
+  - `src/refine.ts`: the `/refine` REPL command's logic — asks the model what this session
+    taught it worth adding to the project instructions file, reusing `edit.ts`'s `applyEdits`
+    and `diff.ts`'s `unifiedDiff` rather than inventing new apply/diff code.
   - `scripts/version.ts`, `scripts/release.ts`: versioning and release tooling (see
     Development Conventions below).
 
@@ -114,6 +117,12 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
   awareness or automatic history pruning beyond the manual `/compact`/`/clear` commands, and
   a real coding session's peak accumulated history routinely lands in the 100k-200k range, so
   smaller-context models would fail mid-session with a provider context-length error.
+- **Project instructions file resolution** (`src/system-prompt.ts`,
+  `findProjectInstructionsPath`): first match wins, checked in order `MINI.md`, `CLAUDE.md`,
+  `AGENTS.md` — mini's own native file takes priority over the generic cross-tool one. Only
+  one file is ever loaded, never merged. `/refine` (`src/refine.ts`) uses this same resolver
+  so it always edits whichever file actually got loaded into the system prompt this session,
+  never a hardcoded name.
 
 ## Documentation
 

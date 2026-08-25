@@ -28,6 +28,7 @@ In an interactive session:
   /resume <id>                   Resume a saved session (replaces current context)
   /clear                         Reset the conversation context
   /compact                       Summarize history so far to free up context
+  /refine                        Propose CLAUDE.md updates from this session, with a diff to confirm
   /exit                          Quit
 
 Environment:

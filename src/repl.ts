@@ -1,13 +1,15 @@
 // Copyright 2026 adezdev. Apache-2.0 License. See LICENSE.
 
+import { readFile, writeFile } from "node:fs/promises";
 import type { Interface } from "node:readline/promises";
 import { createInterface } from "node:readline/promises";
 import { runAgentLoop } from "./agent/loop.js";
 import type { Message } from "./agent/types.js";
 import type { Config } from "./config.js";
 import { fetchModels, formatModelLine, type ModelInfo, rankForPicker } from "./models.js";
+import { computeRefinement } from "./refine.js";
 import { listSessions, Session } from "./session/jsonl.js";
-import { buildSystemPrompt } from "./system-prompt.js";
+import { buildSystemPrompt, findProjectInstructionsPath } from "./system-prompt.js";
 import { allTools } from "./tools/index.js";
 
 async function runTurn(
@@ -130,6 +132,7 @@ Commands:
   /resume <id>       Resume a saved session (replaces current context)
   /clear             Reset the conversation context (keeps the session log)
   /compact           Summarize the conversation so far to free up context
+  /refine            Propose CLAUDE.md updates based on this session, with a diff to confirm
   /exit, /quit       Quit
 `;
 
@@ -316,6 +319,35 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
           console.log(`\x1b[2mHistory compacted (context now ${messages.length} messages).\x1b[0m\n`);
         } catch (err) {
           console.error(`\x1b[31mCompact failed: ${(err as Error).message}\x1b[0m`);
+        }
+        continue;
+      }
+
+      if (trimmed === "/refine") {
+        const instructionsPath = await findProjectInstructionsPath(config.cwd);
+        if (!instructionsPath) {
+          console.log("No AGENTS.md/CLAUDE.md/MINI.md found in this directory — /refine only edits an existing one.\n");
+          continue;
+        }
+        const fileName = instructionsPath.slice(config.cwd.length + 1);
+        const instructionsContent = await readFile(instructionsPath, "utf-8");
+        console.log(`\x1b[2mReviewing this session for anything worth adding to ${fileName}…\x1b[0m`);
+        try {
+          const refinement = await computeRefinement(config, messages, instructionsContent);
+          if (!refinement) {
+            console.log(`Nothing to refine — ${fileName} already covers this session.\n`);
+            continue;
+          }
+          console.log(`\n${refinement.diff}`);
+          const answer = (await rl.question(`Apply these changes to ${fileName}? [y/N] `)).trim().toLowerCase();
+          if (answer === "y" || answer === "yes") {
+            await writeFile(instructionsPath, refinement.newContent, "utf-8");
+            console.log(`\x1b[2m${fileName} updated.\x1b[0m\n`);
+          } else {
+            console.log("Discarded.\n");
+          }
+        } catch (err) {
+          console.error(`\x1b[31mRefine failed: ${(err as Error).message}\x1b[0m`);
         }
         continue;
       }

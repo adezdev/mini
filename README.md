@@ -82,11 +82,16 @@ task needs more room, raise it with `MINI_MAX_TURNS=<n>`.
   session log on disk keeps the full history either way)
 - `/compact`: ask the model to summarize the conversation so far and replace the
   live context with that summary, to free up space in long sessions
+- `/refine`: ask the model what this session taught it that's worth adding to
+  your project instructions file, and show a diff to confirm before writing
+  anything — never applies silently
 
 ### Project instructions
 
-Drop an `AGENTS.md`, `CLAUDE.md`, or `MINI.md` in your project root and mini will
-inject it into the system prompt as project-specific context.
+Drop a `MINI.md`, `CLAUDE.md`, or `AGENTS.md` in your project root and mini will
+inject it into the system prompt as project-specific context (first match wins,
+in that order — mini's own file first, then this repo's convention, then the
+generic cross-tool fallback).
 
 ## Design notes
 
