@@ -28,6 +28,9 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
   - `src/refine.ts`: the `/refine` REPL command's logic — asks the model what this session
     taught it worth adding to the project instructions file, reusing `edit.ts`'s `applyEdits`
     and `diff.ts`'s `unifiedDiff` rather than inventing new apply/diff code.
+  - `src/checkpoint.ts`: per-turn checkpoint commits (see Development Conventions below).
+    `src/git.ts`: the small `runGit`/`resolveProtectedBranch`/`getCurrentBranch` helpers it
+    shares with `tools/tripwires.ts`'s force-push check.
   - `scripts/version.ts`, `scripts/release.ts`: versioning and release tooling (see
     Development Conventions below).
 
@@ -90,17 +93,26 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
     in that case instead of hanging until timeout. Each command must be syntactically complete
     on its own — no unterminated quotes/heredocs waiting for more input. Before any of that,
     `bashTool.execute` checks the command against `tripwires.ts`'s `checkTripwire` — a small,
-    high-confidence deny-list (whole-filesystem/home `rm -rf`, `curl`/`wget` piped into a root
-    shell) that refuses the command outright, without ever spawning it. Fourth and last item of
-    the walk-away-autonomy guardrail work (roadmap in project memory): a floor against an
-    *honest* mistake (a hallucinated bad path), not a jailbreak trying to obfuscate around it —
-    that needs a real sandbox, out of scope here. No in-band override (no `force: true` on the
-    tool call — a model that could flip it would learn to always flip it); the only escape hatch
-    is `MINI_BASH_TRIPWIRES=0`, set by the human before the session starts, read live via
-    `tripwiresEnabled()` rather than cached at import (same lesson as `selfCheckEnabled()`).
-    Force-push-to-protected-branch was considered and deliberately deferred — it needs real git
-    state (reusing `checkpoint.ts`'s branch-protection resolution) for a case that's already
-    less catastrophic than the other two, since it's usually recoverable via `reflog`.
+    high-confidence deny-list that refuses the command outright, without ever spawning it.
+    Fourth item of the walk-away-autonomy guardrail work (roadmap in project memory): a floor
+    against an *honest* mistake (a hallucinated bad path), not a jailbreak trying to obfuscate
+    around it — that needs a real sandbox, out of scope here. No in-band override (no
+    `force: true` on the tool call — a model that could flip it would learn to always flip it);
+    the only escape hatch is `MINI_BASH_TRIPWIRES=0`, set by the human before the session
+    starts, read live via `tripwiresEnabled()` rather than cached at import (same lesson as
+    `selfCheckEnabled()`). Three checks:
+    - Whole-filesystem/home `rm -rf` (bare `/`, `~`, `$HOME`, `${HOME}`, `/*` only — never
+      `rm -rf ./build`).
+    - `curl`/`wget` piped into a *root* shell (`| sudo sh`/`bash`/etc). Narrowed from "any
+      `curl | sh`" on purpose — that pattern alone is an extremely common legitimate installer
+      idiom, and blocking it outright would be more friction than protection.
+    - `git push --force`/`-f`/`--force-with-lease` targeting the repo's protected default
+      branch (resolved via `git.ts`'s `resolveProtectedBranch`/`getCurrentBranch`, the same
+      helpers `checkpoint.ts` uses to decide which branch to switch off of — extracted into
+      `src/git.ts` specifically so both modules share one implementation instead of two). Was
+      initially deferred as needing "real git-shelling complexity for a case that's already
+      less catastrophic than the other two" — true, but the complexity turned out to be small
+      once the branch-resolution logic already existed to reuse, so it shipped after all.
   - `edit.ts`: each `oldText` must match the file's content **exactly once**; when a call has
     multiple edits, all are computed against the *original* content (not chained
     sequentially; see `applyEdits`, kept as a pure function separate from file I/O for

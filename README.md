@@ -26,8 +26,9 @@ telemetry, session backends, a server/protocol layer):
   confined to the project directory — a path that resolves outside `cwd` is rejected,
   not followed (doesn't cover symlink escapes or anything reached via `bash` itself).
   `bash` also refuses a small deny-list of unambiguously destructive commands outright
-  (whole-filesystem/home `rm -rf`, `curl`/`wget` piped into a root shell) — a floor
-  against an honest mistake, not a sandbox; disable with `MINI_BASH_TRIPWIRES=0`.
+  (whole-filesystem/home `rm -rf`, `curl`/`wget` piped into a root shell, force-pushing
+  the repo's default branch) — a floor against an honest mistake, not a sandbox;
+  disable with `MINI_BASH_TRIPWIRES=0`.
 
 ## Setup
 

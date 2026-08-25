@@ -1,6 +1,6 @@
 // Copyright 2026 adezdev. Apache-2.0 License. See LICENSE.
 
-import { spawn } from "node:child_process";
+import { getCurrentBranch, resolveProtectedBranch, runGit } from "./git.js";
 
 export interface CheckpointState {
   enabled: boolean;
@@ -18,28 +18,6 @@ export interface CheckpointCommitResult {
   error?: string;
 }
 
-interface GitResult {
-  ok: boolean;
-  stdout: string;
-  stderr: string;
-}
-
-function runGit(cwd: string, args: string[]): Promise<GitResult> {
-  return new Promise((resolvePromise) => {
-    const child = spawn("git", args, { cwd });
-    let stdout = "";
-    let stderr = "";
-    child.stdout?.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf-8");
-    });
-    child.stderr?.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf-8");
-    });
-    child.on("error", () => resolvePromise({ ok: false, stdout, stderr: "failed to spawn git" }));
-    child.on("close", (code) => resolvePromise({ ok: code === 0, stdout, stderr }));
-  });
-}
-
 function disabled(cwd: string, reason: "silent" | "dirty" = "silent"): CheckpointState {
   return { enabled: false, reason, cwd, branch: null, originalBranch: null, commitCount: 0 };
 }
@@ -48,24 +26,6 @@ function disabled(cwd: string, reason: "silent" | "dirty" = "silent"): Checkpoin
 // moment a session starts — excluded everywhere so mini's bookkeeping never counts as "dirty"
 // and never gets swept into a checkpoint commit.
 const EXCLUDE_MINI_DIR = ["--", ".", ":!.mini"];
-
-/**
- * Finds the branch mini should treat as "yours, don't pollute it": the
- * remote's default branch if there is one, else a local `main`/`master` if
- * one exists, else — no established multi-branch convention to go on — the
- * current branch itself, since it's the only line of history there is.
- */
-async function resolveProtectedBranch(cwd: string, currentBranch: string | null): Promise<string | null> {
-  const originHead = await runGit(cwd, ["symbolic-ref", "refs/remotes/origin/HEAD"]);
-  if (originHead.ok) {
-    return originHead.stdout.trim().replace(/^refs\/remotes\/origin\//, "");
-  }
-  for (const candidate of ["main", "master"]) {
-    const exists = await runGit(cwd, ["show-ref", "--verify", "--quiet", `refs/heads/${candidate}`]);
-    if (exists.ok) return candidate;
-  }
-  return currentBranch;
-}
 
 /**
  * Decides whether checkpoint commits should happen this session and where.
@@ -81,9 +41,7 @@ export async function initCheckpointing(cwd: string, sessionId: string): Promise
   if (!status.ok) return disabled(cwd);
   if (status.stdout.trim() !== "") return disabled(cwd, "dirty");
 
-  const branchResult = await runGit(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]);
-  const currentBranch = branchResult.ok && branchResult.stdout.trim() !== "HEAD" ? branchResult.stdout.trim() : null;
-
+  const currentBranch = await getCurrentBranch(cwd);
   const protectedBranch = await resolveProtectedBranch(cwd, currentBranch);
   const isProtected = currentBranch === null || currentBranch === protectedBranch;
 

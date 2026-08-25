@@ -163,7 +163,7 @@ export const bashTool: AgentTool = {
   },
   async execute(args: { command: string; timeout?: number }, cwd: string) {
     if (tripwiresEnabled()) {
-      const tripped = checkTripwire(args.command);
+      const tripped = await checkTripwire(args.command, cwd);
       if (tripped) return { content: tripped, isError: true };
     }
 
