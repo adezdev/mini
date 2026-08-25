@@ -2,6 +2,7 @@
 
 import { relative, resolve } from "node:path";
 import type { AgentTool } from "../agent/types.js";
+import { resolveInRoot } from "./path-guard.js";
 import { globToRegExp, loadGitignorePatterns, walkFiles } from "./walk.js";
 
 const MAX_RESULTS = 200;
@@ -48,6 +49,10 @@ export const findTool: AgentTool = {
     required: ["pattern"],
   },
   async execute(args: FindArgs, cwd: string) {
+    if (args.path) {
+      const guarded = resolveInRoot(cwd, args.path);
+      if (!guarded.ok) return { content: guarded.error, isError: true };
+    }
     let result: Awaited<ReturnType<typeof findFiles>>;
     try {
       result = await findFiles(cwd, args);

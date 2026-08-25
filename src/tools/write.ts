@@ -1,8 +1,9 @@
 // Copyright 2026 adezdev. Apache-2.0 License. See LICENSE.
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 import type { AgentTool } from "../agent/types.js";
+import { resolveInRoot } from "./path-guard.js";
 
 export const writeTool: AgentTool = {
   name: "write",
@@ -16,7 +17,9 @@ export const writeTool: AgentTool = {
     required: ["path", "content"],
   },
   async execute(args: { path: string; content: string }, cwd: string) {
-    const filePath = resolve(cwd, args.path);
+    const guarded = resolveInRoot(cwd, args.path);
+    if (!guarded.ok) return { content: guarded.error, isError: true };
+    const filePath = guarded.path;
     try {
       await mkdir(dirname(filePath), { recursive: true });
       await writeFile(filePath, args.content, "utf-8");

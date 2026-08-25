@@ -139,3 +139,9 @@ test("grepTool.execute reports an error result for an invalid regex pattern", as
   assert.equal(result.isError, true);
   assert.match(result.content, /^Error:/);
 });
+
+test("grepTool.execute rejects a search path that escapes the project directory", async () => {
+  const result = await grepTool.execute({ pattern: "hello", path: ".." }, dir);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /escapes the project directory/);
+});

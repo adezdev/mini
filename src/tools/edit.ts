@@ -1,9 +1,9 @@
 // Copyright 2026 adezdev. Apache-2.0 License. See LICENSE.
 
 import { readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import type { AgentTool } from "../agent/types.js";
 import { unifiedDiff } from "./diff.js";
+import { resolveInRoot } from "./path-guard.js";
 
 export interface EditSpec {
   oldText: string;
@@ -90,7 +90,9 @@ export const editTool: AgentTool = {
     required: ["path", "edits"],
   },
   async execute(args: { path: string; edits: EditSpec[] }, cwd: string) {
-    const filePath = resolve(cwd, args.path);
+    const guarded = resolveInRoot(cwd, args.path);
+    if (!guarded.ok) return { content: guarded.error, isError: true };
+    const filePath = guarded.path;
     let raw: string;
     try {
       raw = await readFile(filePath, "utf-8");

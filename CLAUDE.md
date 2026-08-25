@@ -20,7 +20,7 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
   - `src/llm/`: the OpenRouter client (`openrouter.ts`), SSE parsing (`sse.ts`), and the
     tool-call streaming-delta accumulator (`tool-call-accumulator.ts`).
   - `src/tools/`: the seven built-in tools (`read`, `write`, `edit`, `bash`, `grep`, `find`,
-    `ls`) plus their shared helpers (`lines.ts`, `diff.ts`, `walk.ts`).
+    `ls`) plus their shared helpers (`lines.ts`, `diff.ts`, `walk.ts`, `path-guard.ts`).
   - `src/session/jsonl.ts`: append-only JSONL session persistence.
   - `src/models.ts`, `src/system-prompt.ts`, `src/cli-args.ts`, `src/repl.ts`, `src/cli.ts`:
     model listing/picker, system prompt assembly, CLI arg parsing, the REPL, and the entry
@@ -100,6 +100,14 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
     globs, not the full gitignore spec) shared by `grep.ts` and `find.ts`.
   - `find.ts`: glob matching over that walk. A pattern with `/` matches the full relative
     path, otherwise just the basename (mirrors `fd`'s behavior).
+  - `path-guard.ts`: `resolveInRoot(root, path)` confines every path-taking tool (`read`,
+    `write`, `edit`, `ls`, `grep`, `find`) to the project directory — rejects a resolved path
+    that escapes `cwd` (an absolute `/etc/passwd`, a relative `../../.ssh/id_rsa`), returned as
+    a normal `{content, isError: true}` result so the model can recover rather than crashing
+    mini. Deliberately doesn't cover: symlinks planted inside the root pointing outside it
+    (would need a `realpath` check per call), or anything reached through `bash`, which is
+    arbitrary shell and can't be filesystem-contained without a real sandbox. Part of the
+    walk-away-autonomy guardrail work — see the roadmap in project memory.
 - **OpenRouter streaming:** tool-call argument fragments arrive across many stream chunks
   addressed by a stable **numeric `index`** (not `id`, which may only appear on the first
   chunk for that index). `ToolCallAccumulator` buffers per-index argument fragments and only

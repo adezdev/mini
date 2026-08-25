@@ -22,7 +22,9 @@ telemetry, session backends, a server/protocol layer):
 - **Plain-text REPL**, not a differential-render TUI.
 - **Seven tools**: `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`. Enough for
   real editing/searching/running-things work. `bash` runs in a persistent shell for the
-  session, so `cd` and exported env vars carry over between calls.
+  session, so `cd` and exported env vars carry over between calls. The other six are
+  confined to the project directory — a path that resolves outside `cwd` is rejected,
+  not followed (doesn't cover symlink escapes or anything reached via `bash` itself).
 
 ## Setup
 

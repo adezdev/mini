@@ -52,3 +52,9 @@ test("reading a binary file returns an error instead of decoded garbage", async 
   assert.equal(result.isError, true);
   assert.match(result.content, /appears to be binary/);
 });
+
+test("rejects a path that escapes the project directory", async () => {
+  const result = await readTool.execute({ path: "../../etc/passwd" }, dir);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /escapes the project directory/);
+});

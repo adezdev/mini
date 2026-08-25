@@ -39,3 +39,9 @@ test("errors gracefully on a missing directory", async () => {
   const result = await lsTool.execute({ path: "does-not-exist" }, dir);
   assert.equal(result.isError, true);
 });
+
+test("rejects a path that escapes the project directory", async () => {
+  const result = await lsTool.execute({ path: ".." }, dir);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /escapes the project directory/);
+});

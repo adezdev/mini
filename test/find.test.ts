@@ -94,3 +94,9 @@ test("findTool.execute appends a truncation trailer when results are capped", as
     await rm(bigDir, { recursive: true, force: true });
   }
 });
+
+test("findTool.execute rejects a search path that escapes the project directory", async () => {
+  const result = await findTool.execute({ pattern: "*.ts", path: ".." }, dir);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /escapes the project directory/);
+});

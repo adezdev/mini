@@ -1,9 +1,9 @@
 // Copyright 2026 adezdev. Apache-2.0 License. See LICENSE.
 
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import type { AgentTool } from "../agent/types.js";
 import { splitLines } from "./lines.js";
+import { resolveInRoot } from "./path-guard.js";
 
 const MAX_LINES = 2000;
 const MAX_BYTES = 256 * 1024;
@@ -23,7 +23,9 @@ export const readTool: AgentTool = {
     required: ["path"],
   },
   async execute(args: { path: string; offset?: number; limit?: number }, cwd: string) {
-    const filePath = resolve(cwd, args.path);
+    const guarded = resolveInRoot(cwd, args.path);
+    if (!guarded.ok) return { content: guarded.error, isError: true };
+    const filePath = guarded.path;
     let raw: string;
     try {
       raw = await readFile(filePath, "utf-8");

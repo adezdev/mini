@@ -2,8 +2,8 @@
 
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
-import { resolve } from "node:path";
 import type { AgentTool } from "../agent/types.js";
+import { resolveInRoot } from "./path-guard.js";
 
 const ALWAYS_IGNORED = new Set([".git", "node_modules", "dist", ".mini"]);
 
@@ -18,7 +18,12 @@ export const lsTool: AgentTool = {
     required: [],
   },
   async execute(args: { path?: string }, cwd: string) {
-    const dirPath = args.path ? resolve(cwd, args.path) : cwd;
+    let dirPath = cwd;
+    if (args.path) {
+      const guarded = resolveInRoot(cwd, args.path);
+      if (!guarded.ok) return { content: guarded.error, isError: true };
+      dirPath = guarded.path;
+    }
     let entries: Dirent[];
     try {
       entries = await readdir(dirPath, { withFileTypes: true });

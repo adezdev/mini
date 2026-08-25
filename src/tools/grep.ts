@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import type { AgentTool } from "../agent/types.js";
 import { splitLines } from "./lines.js";
+import { resolveInRoot } from "./path-guard.js";
 import { globToRegExp, loadGitignorePatterns, walkFiles } from "./walk.js";
 
 const MAX_MATCHES = 200;
@@ -82,6 +83,10 @@ export const grepTool: AgentTool = {
     required: ["pattern"],
   },
   async execute(args: GrepArgs, cwd: string) {
+    if (args.path) {
+      const guarded = resolveInRoot(cwd, args.path);
+      if (!guarded.ok) return { content: guarded.error, isError: true };
+    }
     let searchResult: Awaited<ReturnType<typeof searchFiles>>;
     try {
       searchResult = await searchFiles(cwd, args);

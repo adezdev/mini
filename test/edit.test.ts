@@ -129,3 +129,9 @@ test("editTool.execute returns an error when oldText matches more than once", as
   assert.equal(result.isError, true);
   assert.match(result.content, /matches 2 times/);
 });
+
+test("rejects a path that escapes the project directory", async () => {
+  const result = await editTool.execute({ path: "../outside.txt", edits: [{ oldText: "a", newText: "b" }] }, dir);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /escapes the project directory/);
+});

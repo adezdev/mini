@@ -31,3 +31,9 @@ test("creates intermediate directories as needed", async () => {
   await writeTool.execute({ path: "a/b/c.txt", content: "deep" }, dir);
   assert.equal(await readFile(join(dir, "a/b/c.txt"), "utf-8"), "deep");
 });
+
+test("rejects a path that escapes the project directory", async () => {
+  const result = await writeTool.execute({ path: "../outside.txt", content: "x" }, dir);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /escapes the project directory/);
+});
