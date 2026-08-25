@@ -30,20 +30,31 @@ function printCheckpointSummary(state: CheckpointState): void {
   }
 }
 
-async function runTurn(
+const MUTATING_TOOLS = new Set(["write", "edit", "bash"]);
+function selfCheckEnabled(): boolean {
+  return process.env.MINI_SELF_CHECK !== "0";
+}
+const SELF_CHECK_PROMPT =
+  "[auto self-check] You changed files in your last turn. Verify correctness — run this " +
+  "project's own checks (tests, lint, typecheck, build — whatever this project actually uses) " +
+  "and fix anything broken before finishing. If there's no obvious way to check, say so briefly.";
+
+/** Runs one prompt through the agent loop, persists it, and checkpoints. Returns whether a tool call changed files. */
+async function runPass(
   config: Config,
   session: Session,
   messages: Message[],
-  userInput: string,
+  promptText: string,
   checkpoint: CheckpointState,
   onUsage?: (promptTokens: number, completionTokens: number) => void,
-): Promise<void> {
-  const userMessage: Message = { role: "user", content: userInput };
+): Promise<boolean> {
+  const userMessage: Message = { role: "user", content: promptText };
   messages.push(userMessage);
   await session.appendMessage(userMessage);
 
   const beforeLength = messages.length;
   let toolInFlight = false;
+  let mutated = false;
 
   await runAgentLoop({
     apiKey: config.apiKey,
@@ -63,6 +74,7 @@ async function runTurn(
           break;
         case "tool_call_end":
           toolInFlight = false;
+          if (MUTATING_TOOLS.has(event.name) && !event.isError) mutated = true;
           process.stdout.write(formatToolResult(event.content, event.isError));
           break;
         case "turn_end":
@@ -79,9 +91,27 @@ async function runTurn(
     await session.appendMessage(messages[i]);
   }
 
-  const result = await commitCheckpointIfDirty(checkpoint, userInput);
+  const result = await commitCheckpointIfDirty(checkpoint, promptText);
   if (result.error) {
     console.error(`\x1b[31mCheckpoint commit failed: ${result.error}\x1b[0m\n`);
+  }
+
+  return mutated;
+}
+
+async function runTurn(
+  config: Config,
+  session: Session,
+  messages: Message[],
+  userInput: string,
+  checkpoint: CheckpointState,
+  onUsage?: (promptTokens: number, completionTokens: number) => void,
+): Promise<void> {
+  const mutated = await runPass(config, session, messages, userInput, checkpoint, onUsage);
+
+  if (mutated && selfCheckEnabled()) {
+    console.log("\n\x1b[2m› auto self-check: verifying the changes above…\x1b[0m");
+    await runPass(config, session, messages, SELF_CHECK_PROMPT, checkpoint, onUsage);
   }
 }
 

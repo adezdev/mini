@@ -34,6 +34,7 @@ In an interactive session:
 Environment:
   OPENROUTER_API_KEY   required, get one at https://openrouter.ai/keys
   MINI_MODEL            optional default model override
+  MINI_SELF_CHECK=0     disable the automatic self-check pass after file changes
 `);
 }
 

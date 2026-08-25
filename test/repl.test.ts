@@ -303,6 +303,47 @@ test("runReplLoop: no checkpointing notices in a non-git working directory", asy
   assert.ok(!output.includes("Checkpointing"));
 });
 
+test("runReplLoop: a mutating tool call triggers an automatic self-check pass", async () => {
+  mockChatSequence([
+    toolCallSse("call_1", "write", { path: "x.txt", content: "hi" }),
+    textSseWithUsage("first pass done", 1, 1),
+    textSseWithUsage("self-check pass done", 1, 1),
+  ]);
+  const session = await Session.create(dir);
+  const messages: any[] = [{ role: "system", content: "sys" }];
+  const output = await runRepl(testConfig(), session, messages, ["write a file", "/exit"]);
+
+  assert.match(output, /auto self-check: verifying the changes above/);
+  assert.match(output, /first pass done/);
+  assert.match(output, /self-check pass done/);
+  assert.ok(messages.some((m) => m.role === "user" && String(m.content).includes("[auto self-check]")));
+});
+
+test("runReplLoop: a read-only tool call does not trigger a self-check pass", async () => {
+  mockChatSequence([toolCallSse("call_1", "ls", { path: "." }), textSseWithUsage("done", 1, 1)]);
+  const session = await Session.create(dir);
+  const messages: any[] = [{ role: "system", content: "sys" }];
+  const output = await runRepl(testConfig(), session, messages, ["list files", "/exit"]);
+
+  assert.ok(!output.includes("auto self-check"));
+});
+
+test("runReplLoop: MINI_SELF_CHECK=0 disables the automatic self-check pass", async () => {
+  process.env.MINI_SELF_CHECK = "0";
+  try {
+    mockChatSequence([
+      toolCallSse("call_1", "write", { path: "y.txt", content: "hi" }),
+      textSseWithUsage("done", 1, 1),
+    ]);
+    const session = await Session.create(dir);
+    const messages: any[] = [{ role: "system", content: "sys" }];
+    const output = await runRepl(testConfig(), session, messages, ["write a file", "/exit"]);
+    assert.ok(!output.includes("auto self-check"));
+  } finally {
+    delete process.env.MINI_SELF_CHECK;
+  }
+});
+
 test("runReplLoop: /cost reports cumulative usage and estimated cost after a turn", async () => {
   mockChatSequence([textSseWithUsage("ok", 100, 50)]);
   const session = await Session.create(dir);

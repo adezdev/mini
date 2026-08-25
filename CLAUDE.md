@@ -162,6 +162,22 @@ loop, a plain-text REPL, and a handful of built-in tools, talking only to OpenRo
     guardrail. A hook rejection is reported as a turn-level error, not silently swallowed.
   - Deliberately not built: auto-squashing, auto-merging into the real branch, auto-deleting a
     branch after a bad run. All manual, on purpose.
+- **Self-check** (`src/repl.ts`, `runPass`/`runTurn`): the third walk-away-autonomy guardrail
+  item (roadmap in project memory) — nothing previously told mini to notice it might have
+  broken something. mini's harness deliberately doesn't try to know or guess a project's check
+  command (no `package.json`-script parsing, no `Makefile` heuristics); the model already knows
+  how, since it's read the project's own instructions file and been running its own checks all
+  session. Instead: `runTurn` calls the new `runPass` helper twice when a turn's tool calls
+  included a successful `write`/`edit`/`bash` (tracked from `tool_call_end` events, not from
+  checkpointing's git status, so this works even without git) — once for the real turn, then
+  once more with a synthetic instruction telling the model to verify and fix before finishing,
+  shown plainly in the transcript prefixed `[auto self-check]`, never hidden. Bounded to exactly
+  one self-check pass per user turn — it does not chain a second self-check off the first one's
+  own changes, even if that pass changes files too (that's what checkpointing/revert is for, not
+  a retry loop). The self-check pass's own changes get checkpointed like anything else, as a
+  separate commit. Opt out per-invocation with `MINI_SELF_CHECK=0` — read live via
+  `selfCheckEnabled()`, not cached at module load, so it stays testable/toggleable (the same
+  category of mistake `RunAgentLoopOptions.cwd` had before it became a real parameter).
 
 ## Documentation
 

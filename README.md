@@ -104,6 +104,17 @@ review the branch same as you would anyone else's commits. Skips itself
 entirely (silently) outside a git repo, or (with a one-line notice) if the tree
 wasn't clean when the session started.
 
+### Self-check
+
+Whenever a turn's tool calls change a file (a `write`, `edit`, or `bash`
+that didn't error), mini automatically runs one more pass telling the model
+to verify its own work — run whatever this project's checks are and fix
+anything broken — before moving on. It's shown plainly in the transcript
+(prefixed `[auto self-check]`), not hidden, and runs at most once per turn
+even if the fix itself changes more files. Disable it with `MINI_SELF_CHECK=0`
+if you'd rather review changes yourself before mini verifies them (it roughly
+doubles API calls on any turn that touches files).
+
 ### Project instructions
 
 Drop a `MINI.md`, `CLAUDE.md`, or `AGENTS.md` in your project root and mini will
