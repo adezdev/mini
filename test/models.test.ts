@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatModelLine, type ModelInfo, rankForPicker } from "../src/models.js";
+import { formatModelLine, MIN_CONTEXT_LENGTH, type ModelInfo, rankForPicker } from "../src/models.js";
 
 function model(overrides: Partial<ModelInfo>): ModelInfo {
   return {
@@ -8,7 +8,7 @@ function model(overrides: Partial<ModelInfo>): ModelInfo {
     name: "Model",
     free: false,
     supportsTools: true,
-    contextLength: 100_000,
+    contextLength: 262_144,
     promptPricePerM: 1,
     completionPricePerM: 2,
     ...overrides,
@@ -21,6 +21,18 @@ test("rankForPicker: drops models without tool-calling support", () => {
   assert.deepEqual(
     ranked.map((m) => m.id),
     ["a"],
+  );
+});
+
+test("rankForPicker: drops models below MIN_CONTEXT_LENGTH", () => {
+  const models = [
+    model({ id: "roomy", contextLength: MIN_CONTEXT_LENGTH }),
+    model({ id: "cramped", contextLength: MIN_CONTEXT_LENGTH - 1 }),
+  ];
+  const ranked = rankForPicker(models);
+  assert.deepEqual(
+    ranked.map((m) => m.id),
+    ["roomy"],
   );
 });
 

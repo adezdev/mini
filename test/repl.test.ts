@@ -34,7 +34,7 @@ const modelsBody = {
     {
       id: "vendor/free-model:free",
       name: "Free Model",
-      context_length: 100_000,
+      context_length: 262_144,
       supported_parameters: ["tools"],
       pricing: { prompt: "0", completion: "0" },
     },

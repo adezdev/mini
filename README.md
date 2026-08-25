@@ -53,9 +53,11 @@ Default model: `nvidia/nemotron-3-super-120b-a12b:free`. Override at startup wit
 
 To switch mid-session, use the `/model` command in the REPL:
 
-- `/model`: fetches the current tool-capable model list from OpenRouter, prints it
-  (free models first, then cheapest-to-most-expensive), and lets you pick by number
-  or type an id directly.
+- `/model`: fetches the current tool-capable model list from OpenRouter, filters to
+  models with at least 200k context (a from-scratch coding session's peak accumulated
+  history routinely lands in the 100k-200k range, and mini doesn't prune automatically),
+  prints it (free models first, then cheapest-to-most-expensive), and lets you pick by
+  number or type an id directly.
 - `/model <id>`: switch straight to a known id, no fetch/prompt.
 
 If you're rate-limited on a free model (OpenRouter's free tier is a shared pool and

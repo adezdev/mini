@@ -50,10 +50,19 @@ export async function fetchModels(): Promise<ModelInfo[]> {
   });
 }
 
-/** Tool-capable models, free ones first, then cheapest-to-most-expensive. */
+// mini sends the whole growing message history every turn with no context-
+// window awareness (see src/agent/loop.ts) or automatic pruning (only the
+// manual /compact and /clear REPL commands), so what matters is the peak
+// accumulated history size a real session reaches, not any single request.
+// A from-scratch build session (many read/edit/bash tool calls, diffs, test
+// output, debugging loops) realistically lands in the 100k-200k token range
+// by the end. This floor is set for that case, not a single quick exchange.
+export const MIN_CONTEXT_LENGTH = 200_000;
+
+/** Tool-capable models with enough context for a real session, free ones first, then cheapest-to-most-expensive. */
 export function rankForPicker(models: ModelInfo[]): ModelInfo[] {
   return models
-    .filter((m) => m.supportsTools)
+    .filter((m) => m.supportsTools && m.contextLength >= MIN_CONTEXT_LENGTH)
     .sort((a, b) => {
       if (a.free !== b.free) return a.free ? -1 : 1;
       return (a.promptPricePerM ?? Infinity) - (b.promptPricePerM ?? Infinity);
