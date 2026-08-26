@@ -9,6 +9,7 @@ mini --resume <sessionId>     Resume a previous session (interactive)
 mini --model <id>             Override the model for this run
 mini --list-sessions          List saved sessions for this directory
 mini --help                   Show usage
+mini "<prompt>"               Shorthand for -p "<prompt>"
 ```
 
 ## Flags
@@ -34,6 +35,7 @@ under `.mini/sessions/`, see [architecture.md](architecture.md)).
 | `MINI_MAX_TURNS` | Raise the agent loop's 30-turn safety cap for a single user turn (see [guardrails.md](guardrails.md#turn-cap)). |
 | `MINI_SELF_CHECK=0` | Disable the automatic self-check pass that follows a turn where mini changed files. See [guardrails.md](guardrails.md#self-check). |
 | `MINI_BASH_TRIPWIRES=0` | Disable the bash deny-list for unambiguously destructive commands. See [guardrails.md](guardrails.md#bash-tripwires). |
+| `MINI_CONTEXT_TRIM=0` | Disable auto-collapsing of stale tool output in old turns. See [guardrails.md](guardrails.md#stale-tool-output-trimming). |
 
 ## Model selection
 
