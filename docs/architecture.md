@@ -55,8 +55,11 @@ before the bug was caught and fixed.
 ## Tool contracts
 
 Each tool in `src/tools/` is an `AgentTool`:
-`{name, description, parameters (JSON Schema), execute(args, cwd)}`.
-Notable ones:
+`{name, description, parameters (JSON Schema), execute(args, cwd, signal?)}`.
+`signal` is the same per-turn `AbortController` the REPL wires to SIGINT
+(see [Ctrl+C handling](#ctrl-c-handling) below); only `bash` currently reads
+it, other tools ignore the extra argument since their fs ops are already
+near-instant. Notable ones:
 
 - **`bash.ts`**: runs commands against one persistent shell process kept
   alive for the tool instance's lifetime (not a fresh spawn per call), so
@@ -66,7 +69,14 @@ Notable ones:
   timeout kills the shell outright and the next call transparently
   respawns it — interrupting just the foreground job needs real job
   control (a pty, or non-portable tools like `setsid`), which mini doesn't
-  have. A command like `exit` also kills the shell itself before the
+  have. Ctrl+C mid-command hits the same limitation: `runExclusive` listens
+  for the passed-in `signal`'s `abort` event and, on fire, kills the whole
+  shell (not just the foreground job) and settles with `{aborted: true}`;
+  `bashTool.execute` then calls `signal.throwIfAborted()` to raise the same
+  named `AbortError` a fetch would, so the loop treats it identically to an
+  interrupt during the LLM stream instead of reporting it as a tool
+  failure. The next call respawns transparently, same as after a timeout.
+  A command like `exit` also kills the shell itself before the
   trailing sentinel echo can run; `runExclusive` falls back to the
   process's own `exit` event in that case instead of hanging until
   timeout. Each command must be syntactically complete on its own — no
@@ -114,6 +124,25 @@ Notable ones:
   is run from source, via `bun link`, or as the compiled `dist/mini`
   binary, since Bun embeds the text at bundle time rather than mini
   resolving its own install path at runtime.
+
+### Ctrl+C handling
+
+`runReplLoop` (`src/repl.ts`) creates a fresh `AbortController` per turn and
+only wires SIGINT to it while that turn is in flight — idle Ctrl+C at the
+`>` prompt gets no listener and falls through to Node's default exit. The
+controller's `signal` threads through `runTurn` → `runAgentLoop` → every
+`tool.execute` call. Two places actually observe it:
+
+- `streamChatCompletion` (`src/llm/openrouter.ts`) passes it straight to
+  `fetch`, so an interrupt mid-response throws the platform's own
+  `AbortError` and stops the stream.
+- `runAgentLoop` calls `signal?.throwIfAborted()` before each tool call, and
+  re-throws (rather than converting to a tool-result message) if a tool's
+  `execute` itself throws an `AbortError` — see `bash.ts`'s handling above,
+  currently the only tool that can be interrupted mid-flight.
+
+Either path surfaces as the same named `AbortError`, which `repl.ts`'s
+`isAbortError` catches to print "Interrupted." and drop back to the prompt.
 
 ### Bash tripwires internals
 

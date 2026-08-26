@@ -12,6 +12,7 @@ interface RunResult {
   output: string;
   exitCode: number | null;
   timedOut: boolean;
+  aborted?: boolean;
   spawnError?: string;
 }
 
@@ -32,8 +33,8 @@ class PersistentShell {
   private seq = 0;
   private queue: Promise<unknown> = Promise.resolve();
 
-  run(command: string, cwd: string, timeoutMs: number): Promise<RunResult> {
-    const result = this.queue.then(() => this.runExclusive(command, cwd, timeoutMs));
+  run(command: string, cwd: string, timeoutMs: number, signal?: AbortSignal): Promise<RunResult> {
+    const result = this.queue.then(() => this.runExclusive(command, cwd, timeoutMs, signal));
     this.queue = result.catch(() => {});
     return result;
   }
@@ -64,7 +65,7 @@ class PersistentShell {
     return child;
   }
 
-  private runExclusive(command: string, cwd: string, timeoutMs: number): Promise<RunResult> {
+  private runExclusive(command: string, cwd: string, timeoutMs: number, signal?: AbortSignal): Promise<RunResult> {
     const needsRespawn = !this.child || this.child.exitCode !== null || this.cwd !== cwd;
     const child = needsRespawn ? this.respawn(cwd) : (this.child as ChildProcess);
     const token = `__MINI_EOC_${++this.seq}__`;
@@ -79,6 +80,7 @@ class PersistentShell {
         child.stdout?.off("data", onData);
         child.off("error", onError);
         child.off("exit", onExit);
+        signal?.removeEventListener("abort", onAbort);
         resolve(result);
       };
 
@@ -108,6 +110,14 @@ class PersistentShell {
         });
       };
 
+      // Same shortcoming as the timeout below: no pty/job control means we
+      // can't interrupt just the foreground command, so Ctrl+C takes the
+      // whole shell with it. The next call respawns transparently.
+      const onAbort = () => {
+        finish({ output: this.buffer, exitCode: null, timedOut: false, aborted: true });
+        this.kill();
+      };
+
       const timer = setTimeout(() => {
         finish({ output: this.buffer, exitCode: null, timedOut: true });
         this.kill();
@@ -116,6 +126,7 @@ class PersistentShell {
       child.on("error", onError);
       child.on("exit", onExit);
       child.stdout?.on("data", onData);
+      signal?.addEventListener("abort", onAbort, { once: true });
       child.stdin?.write(`${command}\necho "${token}:$?"\n`, (err) => {
         if (err) onError(err);
       });
@@ -161,15 +172,19 @@ export const bashTool: AgentTool = {
     },
     required: ["command"],
   },
-  async execute(args: { command: string; timeout?: number }, cwd: string) {
+  async execute(args: { command: string; timeout?: number }, cwd: string, signal?: AbortSignal) {
+    signal?.throwIfAborted();
     if (tripwiresEnabled()) {
       const tripped = await checkTripwire(args.command, cwd);
       if (tripped) return { content: tripped, isError: true };
     }
 
     const timeoutMs = args.timeout ?? DEFAULT_TIMEOUT_MS;
-    const result = await shell.run(args.command, cwd, timeoutMs);
+    const result = await shell.run(args.command, cwd, timeoutMs, signal);
 
+    if (result.aborted) {
+      signal?.throwIfAborted();
+    }
     if (result.spawnError) {
       return { content: `Failed to start command: ${result.spawnError}`, isError: true };
     }

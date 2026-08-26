@@ -74,3 +74,22 @@ test("refuses a tripwire command without ever spawning it", async () => {
   assert.equal(result.isError, true);
   assert.match(result.content, /Refused/);
 });
+
+test("an already-aborted signal rejects without spawning the command", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    bashTool.execute({ command: "echo hi" }, process.cwd(), controller.signal),
+    (err: Error) => err.name === "AbortError",
+  );
+});
+
+test("aborting mid-command rejects and resets the shell for later calls", async () => {
+  const controller = new AbortController();
+  const run = bashTool.execute({ command: "sleep 5" }, process.cwd(), controller.signal);
+  setTimeout(() => controller.abort(), 50);
+  await assert.rejects(run, (err: Error) => err.name === "AbortError");
+  const retry = await bashTool.execute({ command: "echo back" }, process.cwd());
+  assert.ok(!retry.isError);
+  assert.match(retry.content, /back/);
+});

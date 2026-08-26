@@ -37,9 +37,12 @@ calls, unlike a fresh shell spawned per call. Returns merged stdout+stderr.
 A timeout kills the shell outright and the next call transparently
 respawns it, rather than trying to interrupt just the offending command —
 that needs real job control (a pty, or non-portable tools like `setsid`),
-which mini deliberately doesn't take on as a dependency. Each command must
-be syntactically complete on its own (no unterminated quotes or heredocs
-waiting for more input).
+which mini deliberately doesn't take on as a dependency. Ctrl+C mid-command
+hits the same wall: it also takes the whole shell down (the next command
+still respawns cleanly), rather than leaving a runaway command stuck in the
+background with no way to interrupt it. Each command must be syntactically
+complete on its own (no unterminated quotes or heredocs waiting for more
+input).
 
 Before running anything, `bash` also checks the command against a small
 deny-list of unambiguously destructive patterns — see

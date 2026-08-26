@@ -49,5 +49,6 @@ export interface AgentTool {
   description: string;
   /** JSON Schema for the tool's arguments (an "object" schema). */
   parameters: Record<string, unknown>;
-  execute(args: any, cwd: string): Promise<ToolResult>;
+  /** `signal` fires on Ctrl+C mid-turn; only `bash` currently honors it. */
+  execute(args: any, cwd: string, signal?: AbortSignal): Promise<ToolResult>;
 }

@@ -80,6 +80,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<void> 
     }
 
     for (const call of toolCalls) {
+      signal?.throwIfAborted();
       onEvent({ type: "tool_call_start", id: call.id, name: call.name, args: call.args });
       const tool = registry.get(call.name);
       let resultMessage: ToolResultMessage;
@@ -93,7 +94,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<void> 
         };
       } else {
         try {
-          const result = await tool.execute(call.args, cwd);
+          const result = await tool.execute(call.args, cwd, signal);
           resultMessage = {
             role: "toolResult",
             toolCallId: call.id,
@@ -102,6 +103,10 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<void> 
             isError: result.isError ?? false,
           };
         } catch (err) {
+          // Ctrl+C mid-tool-call: propagate instead of reporting it as a
+          // normal tool failure, so the REPL prints "Interrupted." like it
+          // does when the interrupt lands during the LLM stream instead.
+          if (err instanceof Error && err.name === "AbortError") throw err;
           resultMessage = {
             role: "toolResult",
             toolCallId: call.id,

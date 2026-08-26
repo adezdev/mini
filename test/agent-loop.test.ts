@@ -118,6 +118,53 @@ test("a tool that throws is caught and reported as an error toolResult", async (
   assert.match(toolEnd.content, /Tool threw an error: kaboom/);
 });
 
+test("a tool aborted mid-call propagates instead of becoming a toolResult", async () => {
+  mockFetchSequence([toolCallSse("call_1", "slow", {})]);
+
+  const slowTool: AgentTool = {
+    name: "slow",
+    description: "honors the abort signal",
+    parameters: { type: "object", properties: {} },
+    execute: async (_args: unknown, _cwd: string, signal?: AbortSignal) => {
+      signal?.throwIfAborted();
+      return { content: "should not get here" };
+    },
+  };
+
+  const messages: Message[] = [{ role: "user", content: "hi" }];
+  const events: LoopEvent[] = [];
+  const controller = new AbortController();
+  controller.abort();
+
+  await assert.rejects(
+    runAgentLoop({ ...baseOptions(messages, [slowTool], events), signal: controller.signal }),
+    (err: Error) => err.name === "AbortError",
+  );
+  assert.ok(!events.some((e) => e.type === "tool_call_end"));
+});
+
+test("passes the loop's signal through to tool.execute", async () => {
+  mockFetchSequence([toolCallSse("call_1", "echo", {}), textSse("done")]);
+
+  let receivedSignal: AbortSignal | undefined;
+  const echoTool: AgentTool = {
+    name: "echo",
+    description: "echoes",
+    parameters: { type: "object", properties: {} },
+    execute: async (_args: unknown, _cwd: string, signal?: AbortSignal) => {
+      receivedSignal = signal;
+      return { content: "ok" };
+    },
+  };
+
+  const messages: Message[] = [{ role: "user", content: "hi" }];
+  const events: LoopEvent[] = [];
+  const controller = new AbortController();
+  await runAgentLoop({ ...baseOptions(messages, [echoTool], events), signal: controller.signal });
+
+  assert.equal(receivedSignal, controller.signal);
+});
+
 test("stops after MAX_TURNS (30) and reports it via a final text_delta", async () => {
   const alwaysTool: AgentTool = {
     name: "loopy",
