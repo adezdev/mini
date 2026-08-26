@@ -38,6 +38,10 @@ function textSse(text: string): ReadableStream<Uint8Array> {
   ]);
 }
 
+function emptySse(): ReadableStream<Uint8Array> {
+  return sseStream(['data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n', "data: [DONE]\n\n"]);
+}
+
 function mockFetchSequence(streams: ReadableStream<Uint8Array>[]): void {
   let call = 0;
   globalThis.fetch = (async () => {
@@ -83,6 +87,24 @@ test("executes a tool call, feeds the result back, and stops on the next plain-t
   assert.equal(toolResultMessage.content, "echo: hi");
   const finalAssistant = messages[messages.length - 1] as any;
   assert.deepEqual(finalAssistant.content, [{ type: "text", text: "done" }]);
+});
+
+test("a truly empty reply (no text, no tool call) surfaces a notice instead of ending silently", async () => {
+  mockFetchSequence([emptySse()]);
+
+  const messages: Message[] = [{ role: "user", content: "hi" }];
+  const events: LoopEvent[] = [];
+  await runAgentLoop(baseOptions(messages, [], events));
+
+  assert.deepEqual(
+    events.map((e) => e.type),
+    ["text_delta", "turn_end"],
+  );
+  const notice = events[0] as any;
+  assert.match(notice.text, /empty response/);
+
+  const finalAssistant = messages[messages.length - 1] as any;
+  assert.deepEqual(finalAssistant.content, []);
 });
 
 test("an unknown tool name produces an error toolResult without throwing", async () => {

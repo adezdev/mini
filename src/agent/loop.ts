@@ -75,6 +75,13 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<void> 
 
     const toolCalls = assistantContent.filter((c) => c.type === "toolCall");
     if (toolCalls.length === 0) {
+      // Some models occasionally finish with truly empty content (no text,
+      // no tool call) — without this, the turn ends completely silently and
+      // looks like mini hung rather than that the model just had nothing
+      // to say.
+      if (assistantContent.length === 0) {
+        onEvent({ type: "text_delta", text: "[mini] Model returned an empty response.\n" });
+      }
       onEvent({ type: "turn_end" });
       return;
     }
