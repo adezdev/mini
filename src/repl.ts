@@ -189,20 +189,37 @@ async function lookupModelPricing(id: string): Promise<ModelInfo | undefined> {
 }
 
 const CONTEXT_WARNING_THRESHOLD = 0.8;
+const CONTEXT_AUTO_COMPACT_THRESHOLD = 0.95;
+
+interface ContextUsage {
+  ratio: number;
+  promptTokens: number;
+  contextLength: number;
+}
 
 /**
- * mini has no automatic history pruning, so a long session can walk right up
- * to the model's context limit and get a provider error mid-task. This warns
- * once a turn's prompt size crosses a threshold, using the same cached model
- * list /cost already fetches (silently no-ops if that fetch fails).
+ * mini has no automatic history pruning beyond context-trim.ts's stale-output
+ * collapsing, so a long session can still walk right up to the model's
+ * context limit. Uses the same cached model list /cost already fetches
+ * (silently no-ops if that fetch fails).
  */
-async function checkContextUsage(config: Config, promptTokens: number): Promise<string | null> {
+async function checkContextUsage(config: Config, promptTokens: number): Promise<ContextUsage | null> {
   if (promptTokens <= 0) return null;
   const info = await lookupModelPricing(config.model);
   if (!info || info.contextLength <= 0) return null;
-  const ratio = promptTokens / info.contextLength;
-  if (ratio < CONTEXT_WARNING_THRESHOLD) return null;
-  return `\x1b[33mContext usage at ${Math.round(ratio * 100)}% (${promptTokens}/${info.contextLength} tokens) — consider /compact.\x1b[0m\n`;
+  return { ratio: promptTokens / info.contextLength, promptTokens, contextLength: info.contextLength };
+}
+
+/** Replaces the live context with a model-written summary. Shared by /compact and auto-compact. */
+async function compactHistory(config: Config, session: Session, messages: Message[]): Promise<number> {
+  const summary = await summarizeMessages(config, messages);
+  const sys = messages.find((m) => m.role === "system");
+  messages.length = 0;
+  if (sys) messages.push(sys);
+  const summaryMessage: Message = { role: "user", content: `Summary of earlier conversation:\n\n${summary}` };
+  messages.push(summaryMessage);
+  await session.appendMessage(summaryMessage);
+  return messages.length;
 }
 
 async function printCost(config: Config, usage: { promptTokens: number; completionTokens: number }): Promise<void> {
@@ -432,16 +449,10 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
       if (trimmed === "/compact") {
         console.log("\x1b[2mCompacting conversation history…\x1b[0m");
         try {
-          const summary = await summarizeMessages(config, messages);
-          const sys = messages.find((m) => m.role === "system");
-          messages.length = 0;
-          if (sys) messages.push(sys);
-          const summaryMessage: Message = { role: "user", content: `Summary of earlier conversation:\n\n${summary}` };
-          messages.push(summaryMessage);
-          await session.appendMessage(summaryMessage);
+          const count = await compactHistory(config, session, messages);
           lastPromptTokens = 0;
           warnedContextFull = false;
-          console.log(`\x1b[2mHistory compacted (context now ${messages.length} messages).\x1b[0m\n`);
+          console.log(`\x1b[2mHistory compacted (context now ${count} messages).\x1b[0m\n`);
         } catch (err) {
           console.error(`\x1b[31mCompact failed: ${(err as Error).message}\x1b[0m`);
         }
@@ -498,10 +509,26 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
           turnController.signal,
         );
         if (!warnedContextFull) {
-          const warning = await checkContextUsage(config, lastPromptTokens);
-          if (warning) {
+          const usage = await checkContextUsage(config, lastPromptTokens);
+          if (usage && usage.ratio >= CONTEXT_AUTO_COMPACT_THRESHOLD) {
+            console.log(
+              `\x1b[33mContext usage at ${Math.round(usage.ratio * 100)}% — auto-compacting before it overflows…\x1b[0m`,
+            );
+            try {
+              const count = await compactHistory(config, session, messages);
+              lastPromptTokens = 0;
+              console.log(`\x1b[2mHistory compacted (context now ${count} messages).\x1b[0m\n`);
+            } catch (err) {
+              // Don't latch warnedContextFull here — a transient failure (e.g. the
+              // summarization call itself erroring) shouldn't permanently disable
+              // the safety net; just retry on the next turn.
+              console.error(`\x1b[31mAuto-compact failed: ${(err as Error).message}\x1b[0m`);
+            }
+          } else if (usage && usage.ratio >= CONTEXT_WARNING_THRESHOLD) {
             warnedContextFull = true;
-            console.log(warning);
+            console.log(
+              `\x1b[33mContext usage at ${Math.round(usage.ratio * 100)}% (${usage.promptTokens}/${usage.contextLength} tokens) — consider /compact.\x1b[0m\n`,
+            );
           }
         }
       } catch (err) {

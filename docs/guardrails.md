@@ -137,14 +137,19 @@ kept verbatim. Purely in-memory: the session log on disk already captured
 the original content when it was first appended, so `/resume` still sees
 the full history. Opt out with `MINI_CONTEXT_TRIM=0`.
 
-## Context usage warning
+## Context usage warning and auto-compact
 
-Beyond the trimming above, mini has no automatic history pruning aside
-from the manual `/compact`/`/clear` commands. Once a turn's prompt token
-count crosses 80% of the current model's context window (checked against
-the same cached model list `/cost` uses), the REPL prints a one-line nudge
-toward `/compact` instead of silently running until the provider errors
-out mid-task. Fires once per session and re-arms on `/clear`/`/compact`.
+Once a turn's prompt token count crosses 80% of the current model's context
+window (checked against the same cached model list `/cost` uses), the REPL
+prints a one-line nudge toward `/compact`. Cross a second, harder threshold
+— 95% — and mini runs `/compact` itself instead of just nudging: unattended,
+walking right up to a provider context-overflow error mid-task is worse than
+losing some detail to a summary. `compactHistory` (`src/repl.ts`) is the
+same code path either way, manual or automatic. Both thresholds fire once
+per session and re-arm on `/clear`/`/compact`, except a *failed*
+auto-compact attempt (e.g. the summarization call itself errors) — that
+doesn't latch, so it retries on the next turn instead of leaving the
+session to run unguarded for the rest of a walk-away session.
 
 ## Turn cap
 

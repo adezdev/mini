@@ -451,6 +451,31 @@ test("runReplLoop: /compact resets the context warning so it can fire again", as
   assert.equal(warnings.length, 2);
 });
 
+test("runReplLoop: auto-compacts once usage crosses the harder threshold", async () => {
+  mockChatSequence([
+    textSseWithUsage("ok", 260_000, 10),
+    textSseWithUsage("Summary of the chat.", 5, 5),
+    textSseWithUsage("ok", 100, 10),
+  ]);
+  const session = await Session.create(dir);
+  const messages: any[] = [{ role: "system", content: "sys" }];
+  const output = await runRepl(testConfig(), session, messages, ["hi", "hi again", "/exit"]);
+
+  assert.match(output, /Context usage at \d+% — auto-compacting/);
+  assert.match(output, /History compacted/);
+  assert.ok(!output.includes("consider /compact"), "shouldn't also print the plain nudge");
+});
+
+test("runReplLoop: below the harder threshold still just nudges, not auto-compacts", async () => {
+  mockChatSequence([textSseWithUsage("ok", 210_000, 10)]);
+  const session = await Session.create(dir);
+  const messages: any[] = [{ role: "system", content: "sys" }];
+  const output = await runRepl(testConfig(), session, messages, ["hi", "/exit"]);
+
+  assert.match(output, /consider \/compact/);
+  assert.ok(!output.includes("auto-compacting"));
+});
+
 test("runReplLoop: /compact replaces history with a system message plus a summary", async () => {
   mockChatSequence([textReplySse("hi"), textSseWithUsage("Summary of the chat.", 5, 5)]);
   const session = await Session.create(dir);

@@ -10,8 +10,10 @@ Lists all interactive commands with a one-line description each.
 
 Fetches the current tool-capable model list from OpenRouter, filters to
 models with at least 200k context (a real coding session's peak accumulated
-history routinely lands in the 100k-200k range, and mini doesn't prune
-automatically — see [guardrails.md](guardrails.md#context-usage-warning)),
+history routinely lands in the 100k-200k range, and mini's automatic
+pruning only trims stale tool output and compacts near the context limit,
+not a substitute for headroom — see
+[guardrails.md](guardrails.md#context-usage-warning-and-auto-compact)),
 prints it (free models first, then cheapest-to-most-expensive), and lets you
 pick by number or type an id directly.
 
@@ -58,7 +60,7 @@ that).
 Resets the conversation context back to just the system prompt. The session
 log on disk keeps the full history either way — this only affects what's
 sent to the model going forward. Also re-arms the context-usage warning (see
-[guardrails.md](guardrails.md#context-usage-warning)).
+[guardrails.md](guardrails.md#context-usage-warning-and-auto-compact)).
 
 ## `/compact`
 
