@@ -173,3 +173,31 @@ test("sends the model, messages, and Authorization header to OpenRouter", async 
   assert.deepEqual(body.messages, [{ role: "user", content: "hi" }]);
   assert.equal(body.stream, true);
 });
+
+test("adds top-level cache_control for anthropic models", async () => {
+  mockFetchOnce(new Response(sseStream(["data: [DONE]\n\n"]), { status: 200 }));
+
+  const messages: Message[] = [{ role: "user", content: "hi" }];
+  for await (const _ of streamChatCompletion({
+    ...baseOptions,
+    model: "anthropic/claude-sonnet-4",
+    messages,
+  })) {
+    // drain
+  }
+
+  const body = JSON.parse((lastCall?.init.body as string) ?? "{}");
+  assert.deepEqual(body.cache_control, { type: "ephemeral" });
+});
+
+test("omits cache_control for non-anthropic models", async () => {
+  mockFetchOnce(new Response(sseStream(["data: [DONE]\n\n"]), { status: 200 }));
+
+  const messages: Message[] = [{ role: "user", content: "hi" }];
+  for await (const _ of streamChatCompletion({ ...baseOptions, model: "openai/gpt-5", messages })) {
+    // drain
+  }
+
+  const body = JSON.parse((lastCall?.init.body as string) ?? "{}");
+  assert.equal("cache_control" in body, false);
+});

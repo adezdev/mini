@@ -36,6 +36,21 @@ behavior lives in [guardrails.md](guardrails.md), [tools.md](tools.md), and
 
 ## OpenRouter streaming
 
+`streamChatCompletion` sends the whole `messages` array as-is, in the order
+it's built (system prompt first, then chronological turns) — append-only
+except for `/clear`/`/compact` resets and `context-trim.ts`'s in-place
+collapsing of old tool output, so the prefix a request shares with the
+previous one stays byte-identical as long as nothing upstream of it changed.
+That matters because most providers cache on exact prefix match. Anthropic
+specifically requires an explicit opt-in (a `cache_control` field — everyone
+else on OpenRouter caches automatically), so the request body adds
+`cache_control: { type: "ephemeral" }` at the top level when `model` starts
+with `anthropic/`. Gated on that prefix rather than sent unconditionally:
+other providers aren't guaranteed to ignore an unrecognized top-level field,
+and Gemini/Qwen's caching needs per-content-block `cache_control` tags
+instead, a bigger restructuring not worth it without evidence those models
+are actually in use here.
+
 Tool-call argument fragments arrive across many stream chunks, addressed by
 a stable **numeric `index`** — not `id`, which may only appear on the first
 chunk for that index. `ToolCallAccumulator` buffers per-index argument

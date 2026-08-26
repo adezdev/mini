@@ -97,6 +97,13 @@ export async function* streamChatCompletion(options: StreamChatCompletionOptions
       model,
       messages: toOpenAiMessages(messages),
       ...(tools.length > 0 ? { tools: toOpenAiTools(tools) } : {}),
+      // Anthropic needs an explicit opt-in for prompt caching (unlike OpenAI
+      // and most other providers, which cache automatically) — this
+      // top-level form caches the whole growing prefix without having to
+      // restructure every message into cache_control-tagged content blocks.
+      // Only send it for Anthropic: other providers aren't guaranteed to
+      // ignore an unrecognized top-level field.
+      ...(model.startsWith("anthropic/") ? { cache_control: { type: "ephemeral" } } : {}),
       stream: true,
       stream_options: { include_usage: true },
     }),
