@@ -3,6 +3,11 @@
 import { readFile, writeFile } from "node:fs/promises";
 import type { Interface } from "node:readline/promises";
 import { createInterface } from "node:readline/promises";
+// Bun bundles JSON imports at build time (resolveJsonModule in tsconfig.json
+// covers the types), same as docs.ts's compile-time .md embedding — so the
+// version shown here is always this build's own, whether running from
+// source, `bun link`, or the compiled dist/mini binary.
+import pkg from "../package.json" with { type: "json" };
 import { runAgentLoop } from "./agent/loop.js";
 import type { Message } from "./agent/types.js";
 import { type CheckpointState, commitCheckpointIfDirty, initCheckpointing } from "./checkpoint.js";
@@ -583,6 +588,32 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
   }
 }
 
+const BANNER_SHORTCUTS: Array<[string, string]> = [
+  ["/help", "all commands"],
+  ["/model", "switch models"],
+  ["/effort", "reasoning effort"],
+  ["/cost", "token usage & cost"],
+  ["/clear", "reset context"],
+  ["/exit", "quit"],
+];
+
+function printWelcomeBanner(config: Config, session: Session): void {
+  console.log(`\n\x1b[1mmini v${pkg.version}\x1b[0m \x1b[2m(model: ${config.model})\x1b[0m\n`);
+  for (let i = 0; i < BANNER_SHORTCUTS.length; i += 2) {
+    const [cmd1, desc1] = BANNER_SHORTCUTS[i];
+    const left = `  ${cmd1.padEnd(8)} ${desc1}`;
+    const right = BANNER_SHORTCUTS[i + 1]
+      ? `${BANNER_SHORTCUTS[i + 1][0].padEnd(8)} ${BANNER_SHORTCUTS[i + 1][1]}`
+      : "";
+    console.log(`\x1b[2m${left.padEnd(34)}${right}\x1b[0m`);
+  }
+  console.log(
+    "\nmini reads and edits your files, runs shell commands, and checkpoints\n" +
+      "its own work as it goes. Type a request to begin.\n",
+  );
+  console.log(`\x1b[2msession: ${session.id}\x1b[0m\n`);
+}
+
 export async function startRepl(config: Config, initialMessages: Message[], session: Session): Promise<void> {
   const messages = initialMessages;
   if (messages.length === 0) {
@@ -594,8 +625,7 @@ export async function startRepl(config: Config, initialMessages: Message[], sess
     await session.appendMessage(systemMessage);
   }
 
-  console.log(`mini (model: ${config.model}, session: ${session.id})`);
-  console.log("Type your request, /help for commands, or /exit to quit.\n");
+  printWelcomeBanner(config, session);
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   await runReplLoop(config, messages, session, rl);

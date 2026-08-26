@@ -66,8 +66,17 @@ Produces a single ~77MB executable that bundles the Bun runtime itself.
 
 ```
 $ mini
-mini (model: nvidia/nemotron-3-super-120b-a12b:free, session: 3f2a1b9c-...)
-Type your request, /help for commands, or /exit to quit.
+
+mini v0.12.0 (model: nvidia/nemotron-3-super-120b-a12b:free)
+
+  /help    all commands           /model   switch models
+  /effort  reasoning effort       /cost    token usage & cost
+  /clear   reset context          /exit    quit
+
+mini reads and edits your files, runs shell commands, and checkpoints
+its own work as it goes. Type a request to begin.
+
+session: 3f2a1b9c-...
 
 > add a .gitignore for a Bun/TypeScript project
 ```
