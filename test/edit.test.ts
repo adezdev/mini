@@ -146,6 +146,16 @@ test("rejects edits sent as a JSON-encoded string instead of an array, with an a
   assert.match(result.content, /JSON-encoded string/);
 });
 
+test("rejects oldText/newText passed directly instead of wrapped in edits, with an actionable message", async () => {
+  const result = await editTool.execute(
+    { path: "small.txt", oldText: "a", newText: "b" } as unknown as { path: string; edits: unknown },
+    dir,
+  );
+  assert.equal(result.isError, true);
+  assert.match(result.content, /must be an array/);
+  assert.match(result.content, /wrap them: edits: \[\{oldText, newText\}\]/);
+});
+
 test("rejects an empty edits array", async () => {
   const result = await editTool.execute({ path: "small.txt", edits: [] }, dir);
   assert.equal(result.isError, true);

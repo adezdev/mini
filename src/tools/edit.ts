@@ -67,16 +67,24 @@ function normalizeToLF(text: string): { normalized: string; usedCRLF: boolean } 
 
 /**
  * Weaker models occasionally send `edits` as a JSON-encoded string instead of
- * an actual array (or otherwise malformed). Reject it up front with a
- * specific, actionable message instead of letting `.map` throw a raw
+ * an actual array, or skip the `edits` wrapper entirely and pass `oldText`/
+ * `newText` as top-level args (observed in the wild: the model retries with
+ * `bash sed` instead of fixing its args, since the plain "got undefined"
+ * message doesn't point at what it actually did wrong). Reject both up front
+ * with a specific, actionable message instead of letting `.map` throw a raw
  * "X is not a function" the model has nothing to work with.
  */
-function validateEdits(edits: unknown): { ok: true; edits: EditSpec[] } | { ok: false; error: string } {
+function validateEdits(
+  edits: unknown,
+  rawArgs?: Record<string, unknown>,
+): { ok: true; edits: EditSpec[] } | { ok: false; error: string } {
   if (!Array.isArray(edits)) {
-    const hint =
-      typeof edits === "string"
-        ? " (looks like a JSON-encoded string — pass an actual array, not a stringified one)"
-        : "";
+    let hint = "";
+    if (typeof edits === "string") {
+      hint = " (looks like a JSON-encoded string — pass an actual array, not a stringified one)";
+    } else if (edits === undefined && rawArgs && ("oldText" in rawArgs || "newText" in rawArgs)) {
+      hint = " (looks like oldText/newText were passed directly — wrap them: edits: [{oldText, newText}])";
+    }
     return { ok: false, error: `edits must be an array of {oldText, newText} objects, got ${typeof edits}${hint}.` };
   }
   if (edits.length === 0) {
@@ -122,7 +130,7 @@ export const editTool: AgentTool = {
     if (typeof args.path !== "string") {
       return { content: `path must be a string, got ${typeof args.path}.`, isError: true };
     }
-    const validated = validateEdits(args.edits);
+    const validated = validateEdits(args.edits, args as unknown as Record<string, unknown>);
     if (!validated.ok) return { content: validated.error, isError: true };
 
     const guarded = resolveInRoot(cwd, args.path);
