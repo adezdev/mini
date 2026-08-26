@@ -37,6 +37,7 @@ Environment:
   MINI_MAX_TURNS          raise the 30-turn safety cap
   MINI_SELF_CHECK=0       disable the automatic self-check pass after file changes
   MINI_BASH_TRIPWIRES=0   disable the bash deny-list for unambiguously destructive commands
+  MINI_CONTEXT_TRIM=0     disable auto-collapsing of stale tool output in old turns
 `);
 }
 

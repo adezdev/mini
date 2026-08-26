@@ -7,6 +7,7 @@ import { runAgentLoop } from "./agent/loop.js";
 import type { Message } from "./agent/types.js";
 import { type CheckpointState, commitCheckpointIfDirty, initCheckpointing } from "./checkpoint.js";
 import type { Config } from "./config.js";
+import { trimStaleToolOutput } from "./context-trim.js";
 import { fetchModels, formatModelLine, type ModelInfo, rankForPicker } from "./models.js";
 import { computeRefinement } from "./refine.js";
 import { listSessions, Session } from "./session/jsonl.js";
@@ -71,6 +72,7 @@ async function runPass(
   const userMessage: Message = { role: "user", content: promptText };
   messages.push(userMessage);
   await session.appendMessage(userMessage);
+  trimStaleToolOutput(messages);
 
   const beforeLength = messages.length;
   let toolInFlight = false;

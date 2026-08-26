@@ -124,14 +124,27 @@ command — not a determined attempt to obfuscate around it (quoting tricks,
 command substitution, encoded payloads); that needs a real sandbox, out of
 scope here.
 
+## Stale tool output trimming
+
+`src/context-trim.ts`, `trimStaleToolOutput`. Before each turn (including
+the self-check pass), collapses `toolResult` messages that are both more
+than 3 turns old and over 2000 characters down to a one-line marker
+(tool name, original size, how many turns ago) — a large `read`/`grep`/
+`bash` result from several turns back has usually been superseded by a
+later look at the same thing, so there's no reason to keep paying for it
+every remaining turn. The current turn and the two before it are always
+kept verbatim. Purely in-memory: the session log on disk already captured
+the original content when it was first appended, so `/resume` still sees
+the full history. Opt out with `MINI_CONTEXT_TRIM=0`.
+
 ## Context usage warning
 
-mini has no automatic history pruning beyond the manual `/compact`/`/clear`
-commands. Once a turn's prompt token count crosses 80% of the current
-model's context window (checked against the same cached model list `/cost`
-uses), the REPL prints a one-line nudge toward `/compact` instead of
-silently running until the provider errors out mid-task. Fires once per
-session and re-arms on `/clear`/`/compact`.
+Beyond the trimming above, mini has no automatic history pruning aside
+from the manual `/compact`/`/clear` commands. Once a turn's prompt token
+count crosses 80% of the current model's context window (checked against
+the same cached model list `/cost` uses), the REPL prints a one-line nudge
+toward `/compact` instead of silently running until the provider errors
+out mid-task. Fires once per session and re-arms on `/clear`/`/compact`.
 
 ## Turn cap
 
