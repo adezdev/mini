@@ -230,6 +230,37 @@ test("runReplLoop: a plain message runs a turn and streams the reply", async () 
   assert.ok(messages.some((m) => m.role === "user" && m.content === "hi there"));
 });
 
+/** A stream that errors as soon as its signal aborts, standing in for fetch cancelling mid-request. */
+function abortableSse(signal?: AbortSignal): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      const fail = () =>
+        controller.error(Object.assign(new Error("The operation was aborted."), { name: "AbortError" }));
+      if (signal?.aborted) {
+        fail();
+        return;
+      }
+      signal?.addEventListener("abort", fail);
+    },
+  });
+}
+
+test("runReplLoop: Ctrl+C during a turn cancels it instead of killing the process", async () => {
+  globalThis.fetch = (async (url: string, init?: { signal?: AbortSignal }) => {
+    if (String(url).includes("/models")) return Response.json(modelsBody);
+    process.emit("SIGINT"); // simulates the user hitting Ctrl+C while this "request" is in flight
+    return new Response(abortableSse(init?.signal), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  const session = await Session.create(dir);
+  const messages: any[] = [{ role: "system", content: "sys" }];
+  const output = await runRepl(testConfig(), session, messages, ["hi there", "still alive?", "/exit"]);
+
+  assert.match(output, /Interrupted/);
+  // the REPL loop kept running afterward instead of the process dying
+  assert.ok(messages.some((m) => m.role === "user" && m.content === "still alive?"));
+});
+
 test("runReplLoop: /resume switches to another session's messages", async () => {
   mockFetch();
   const other = await Session.create(dir);

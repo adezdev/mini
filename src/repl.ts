@@ -66,6 +66,7 @@ async function runPass(
   promptText: string,
   checkpoint: CheckpointState,
   onUsage?: (promptTokens: number, completionTokens: number) => void,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   const userMessage: Message = { role: "user", content: promptText };
   messages.push(userMessage);
@@ -82,6 +83,7 @@ async function runPass(
     tools: allTools,
     cwd: config.cwd,
     maxTurns: config.maxTurns,
+    signal,
     onEvent(event) {
       switch (event.type) {
         case "text_delta":
@@ -126,13 +128,19 @@ async function runTurn(
   userInput: string,
   checkpoint: CheckpointState,
   onUsage?: (promptTokens: number, completionTokens: number) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const mutated = await runPass(config, session, messages, userInput, checkpoint, onUsage);
+  const mutated = await runPass(config, session, messages, userInput, checkpoint, onUsage, signal);
 
   if (mutated && selfCheckEnabled()) {
     console.log("\n\x1b[2m› auto self-check: verifying the changes above…\x1b[0m");
-    await runPass(config, session, messages, SELF_CHECK_PROMPT, checkpoint, onUsage);
+    await runPass(config, session, messages, SELF_CHECK_PROMPT, checkpoint, onUsage, signal);
   }
+}
+
+/** True for the AbortError a fetch throws when its signal fires (Ctrl+C mid-turn). */
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === "AbortError";
 }
 
 /** Summarizes with no tools available, so the model can't go re-reading files mid-summary. */
@@ -470,12 +478,23 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
         continue;
       }
 
+      const turnController = new AbortController();
+      const onSigint = () => turnController.abort();
+      process.on("SIGINT", onSigint);
       try {
-        await runTurn(config, session, messages, trimmed, checkpoint, (p, c) => {
-          totalPromptTokens += p;
-          totalCompletionTokens += c;
-          lastPromptTokens = p;
-        });
+        await runTurn(
+          config,
+          session,
+          messages,
+          trimmed,
+          checkpoint,
+          (p, c) => {
+            totalPromptTokens += p;
+            totalCompletionTokens += c;
+            lastPromptTokens = p;
+          },
+          turnController.signal,
+        );
         if (!warnedContextFull) {
           const warning = await checkContextUsage(config, lastPromptTokens);
           if (warning) {
@@ -484,7 +503,13 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
           }
         }
       } catch (err) {
-        console.error(`\x1b[31mError: ${(err as Error).message}\x1b[0m`);
+        if (isAbortError(err)) {
+          console.log("\n\x1b[2mInterrupted.\x1b[0m\n");
+        } else {
+          console.error(`\x1b[31mError: ${(err as Error).message}\x1b[0m`);
+        }
+      } finally {
+        process.off("SIGINT", onSigint);
       }
     }
   } finally {
