@@ -50,7 +50,13 @@ export async function buildSystemPrompt(tools: AgentTool[], cwd: string): Promis
       "unless the user asks for something specific there. The `bash` tool refuses a small set of " +
       "unambiguously destructive commands outright (e.g. a whole-filesystem `rm -rf /`, or " +
       "force-pushing the repo's default branch) — if refused, don't retry the same command, use " +
-      "a narrower one that does what you actually meant.",
+      "a narrower one that does what you actually meant. You can also extend your own tool list: " +
+      "an AgentTool-shaped file written to `.mini/tools/` is picked up automatically, no restart " +
+      "needed — check the `docs` tool's `extending` topic for the contract before writing one. The " +
+      "new tool is NOT available within the same reply you wrote it in — the tool list only " +
+      "refreshes at the start of the next pass. It IS already there by the `[auto self-check]` " +
+      "follow-up that fires right after, so don't fake-test it by re-implementing its logic inline " +
+      "in `bash`; just call it for real once you get that next turn.",
   ];
 
   const projectInstructions = await loadProjectInstructions(cwd);

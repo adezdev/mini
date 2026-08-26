@@ -43,7 +43,9 @@ Or `bun link` to install a `mini` command, or `bun run compile` for a standalone
 - **[docs/getting-started.md](docs/getting-started.md)** — install, setup, first session
 - **[docs/cli.md](docs/cli.md)** — every flag and environment variable
 - **[docs/repl-commands.md](docs/repl-commands.md)** — every interactive `/command`
-- **[docs/tools.md](docs/tools.md)** — the eight tools mini can call
+- **[docs/tools.md](docs/tools.md)** — the built-in tools mini can call
+- **[docs/extending.md](docs/extending.md)** — add your own tools via
+  `.mini/tools/`, no restart needed
 - **[docs/guardrails.md](docs/guardrails.md)** — checkpointing, self-check, bash
   tripwires, the filesystem boundary
 - **[docs/architecture.md](docs/architecture.md)** — internals, for contributors

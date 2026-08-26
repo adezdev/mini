@@ -1,8 +1,9 @@
 # Built-in Tools
 
-mini gives the model eight tools: seven for doing the work, plus `docs` for
-explaining itself. `/tools` in the REPL prints the live list with the exact
-descriptions sent to the model.
+mini gives the model eight built-in tools: seven for doing the work, plus
+`docs` for explaining itself — plus whatever's currently in `.mini/tools/`,
+see [Dynamic tools](#dynamic-tools) below. `/tools` in the REPL prints the
+live list with the exact descriptions sent to the model.
 
 ## `read`
 
@@ -73,6 +74,13 @@ Call with no arguments to list available topics, or a topic key (e.g.
 `guardrails`, `repl-commands`) to read that doc in full. The content is
 embedded into mini at build time, so it works identically whether you're
 running from source, via `bun link`, or the compiled `dist/mini` binary.
+
+## Dynamic tools
+
+mini can extend its own tool list. Any `AgentTool`-shaped file dropped into
+`.mini/tools/` is loaded alongside the built-ins, rescanned before every
+turn — no restart needed. See [extending.md](extending.md) for the
+contract and a worked example.
 
 ## Filesystem boundary
 

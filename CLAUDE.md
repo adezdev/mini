@@ -20,8 +20,8 @@ changing any subsystem's internals.
   - **Testing:** `bun:test` (Node's `node:test`/`node:assert` API, run natively by Bun).
 - **Architecture:** Single package, no monorepo, no workspaces. File-by-file breakdown,
   streaming/tool-call mechanics, and every subsystem's internal design (checkpointing,
-  self-check, bash tripwires, path confinement, the `docs` tool's build-time text embedding)
-  are in `docs/architecture.md`, not duplicated here.
+  self-check, bash tripwires, path confinement, dynamic tool loading, the `docs` tool's
+  build-time text embedding) are in `docs/architecture.md`, not duplicated here.
 
 ## Building and Running
 

@@ -12,7 +12,7 @@ import { fetchModels, formatModelLine, type ModelInfo, rankForPicker } from "./m
 import { computeRefinement } from "./refine.js";
 import { listSessions, Session } from "./session/jsonl.js";
 import { buildSystemPrompt, findProjectInstructionsPath } from "./system-prompt.js";
-import { allTools } from "./tools/index.js";
+import { getTools } from "./tools/index.js";
 
 function printCheckpointInit(state: CheckpointState): void {
   if (state.reason === "new-branch") {
@@ -29,6 +29,10 @@ function printCheckpointSummary(state: CheckpointState): void {
   if (state.enabled && state.commitCount > 0) {
     console.log(`\x1b[2mCheckpointing: ${state.commitCount} commit(s) on ${state.branch}.\x1b[0m\n`);
   }
+}
+
+function printDynamicToolErrors(errors: string[]): void {
+  for (const err of errors) console.error(`\x1b[31mDynamic tool skipped — ${err}\x1b[0m`);
 }
 
 const MUTATING_TOOLS = new Set(["write", "edit", "bash"]);
@@ -78,11 +82,14 @@ async function runPass(
   let toolInFlight = false;
   let mutated = false;
 
+  const { tools, errors: dynamicToolErrors } = await getTools(config.cwd);
+  printDynamicToolErrors(dynamicToolErrors);
+
   await runAgentLoop({
     apiKey: config.apiKey,
     model: config.model,
     messages,
-    tools: allTools,
+    tools,
     cwd: config.cwd,
     maxTurns: config.maxTurns,
     signal,
@@ -378,8 +385,10 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
       }
 
       if (trimmed === "/tools") {
+        const { tools, errors } = await getTools(config.cwd);
+        printDynamicToolErrors(errors);
         console.log("");
-        for (const t of allTools) console.log(`  ${t.name}: ${t.description}`);
+        for (const t of tools) console.log(`  ${t.name}: ${t.description}`);
         console.log("");
         continue;
       }
@@ -435,7 +444,9 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
       }
 
       if (trimmed === "/clear") {
-        const systemPrompt = await buildSystemPrompt(allTools, config.cwd);
+        const { tools, errors } = await getTools(config.cwd);
+        printDynamicToolErrors(errors);
+        const systemPrompt = await buildSystemPrompt(tools, config.cwd);
         messages.length = 0;
         messages.push({ role: "system", content: systemPrompt });
         totalPromptTokens = 0;
@@ -550,7 +561,9 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
 export async function startRepl(config: Config, initialMessages: Message[], session: Session): Promise<void> {
   const messages = initialMessages;
   if (messages.length === 0) {
-    const systemPrompt = await buildSystemPrompt(allTools, config.cwd);
+    const { tools, errors } = await getTools(config.cwd);
+    printDynamicToolErrors(errors);
+    const systemPrompt = await buildSystemPrompt(tools, config.cwd);
     const systemMessage: Message = { role: "system", content: systemPrompt };
     messages.push(systemMessage);
     await session.appendMessage(systemMessage);
@@ -571,7 +584,9 @@ export async function runOneShot(
 ): Promise<void> {
   const messages = existingMessages;
   if (messages.length === 0) {
-    const systemPrompt = await buildSystemPrompt(allTools, config.cwd);
+    const { tools, errors } = await getTools(config.cwd);
+    printDynamicToolErrors(errors);
+    const systemPrompt = await buildSystemPrompt(tools, config.cwd);
     const systemMessage: Message = { role: "system", content: systemPrompt };
     messages.push(systemMessage);
     await session.appendMessage(systemMessage);

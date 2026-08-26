@@ -42,6 +42,7 @@ test("tells the model about its own automatic checkpointing, self-check, and tri
   assert.match(prompt, /\[auto self-check\]/);
   assert.match(prompt, /commits your changes/);
   assert.match(prompt, /refuses a small set of unambiguously destructive commands/);
+  assert.match(prompt, /\.mini\/tools\//);
 });
 
 test("omits <project_instructions> when no project context file exists", async () => {

@@ -140,6 +140,36 @@ near-instant. Notable ones:
   binary, since Bun embeds the text at bundle time rather than mini
   resolving its own install path at runtime.
 
+### Dynamic tool loading
+
+`src/tools/dynamic.ts`'s `loadDynamicTools(cwd, builtinNames)` scans
+`.mini/tools/*.ts`/`*.js` and dynamically `import()`s each one, checked
+against `isValidTool` (name matches the function-name pattern OpenRouter's
+API imposes, non-empty description, object `parameters`, function
+`execute`) before it's accepted — a file that fails to import, exports the
+wrong shape, or names a tool that collides with a built-in (or another
+dynamic tool) is skipped and reported in the returned `errors` array
+rather than aborting the whole scan or crashing mini. Each file is loaded
+through `stagedImport`, which copies its current content to
+`<tmpdir>/mini-dynamic-tools-cache/<sanitized-path>-<mtimeMs>.ts` and
+imports *that* path instead of the real one. A `?t=<mtime>` query string
+on the real path looks like the obvious cache-bust, but Bun's dynamic
+`import()` cache is keyed on the resolved path alone and silently ignores
+query strings for local file specifiers — so re-importing an edited tool
+file from its real path would keep serving back whatever was imported the
+first time it was seen. Staging to a filename that changes with mtime
+sidesteps that: it's a genuinely different specifier every time the
+file's content actually changes.
+
+`src/tools/index.ts`'s `getTools(cwd)` wraps this: `allTools` (the fixed
+built-in array) concatenated with whatever `loadDynamicTools` finds, built
+against `allTools`' own names so built-ins can never be shadowed. There's
+no cache and no dedicated reload command — `getTools` is called fresh at
+every `buildSystemPrompt`/`runAgentLoop` call site in `repl.ts`, the same
+"cheap, retried every pass" idiom `maybeActivateCheckpointing` already
+uses for checkpointing (see below). A `.mini/tools/` scan is a handful of
+`stat`s at most, so re-running it every turn is not worth caching against.
+
 ### Ctrl+C handling
 
 `runReplLoop` (`src/repl.ts`) creates a fresh `AbortController` per turn and

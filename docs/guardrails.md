@@ -31,6 +31,13 @@ can't be filesystem-contained this way at all — arbitrary shell reaches
 anywhere the OS user can — which is why it gets the deny-list approach
 below instead.
 
+A tool loaded from `.mini/tools/` (see [extending.md](extending.md)) is the
+same kind of gap as `bash`, on purpose: its `execute` is arbitrary code
+that runs with full filesystem and process access, no path confinement, no
+tripwire checks. Writing one is exactly as consequential as running a
+shell command — mini doesn't wrap a second sandbox around code it wrote
+for itself.
+
 ## Checkpointing
 
 If you're in a git repository with a clean working tree, mini commits

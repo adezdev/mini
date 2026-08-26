@@ -28,16 +28,20 @@ function sessionPath(cwd: string, id: string): string {
 }
 
 /**
- * A `.gitignore` containing just `*`, dropped inside `.mini/` itself so the whole directory
- * (session logs included) never shows up in `git status`/`git add .` — for the model's own git
- * commands, not just checkpointing's (which already excludes `.mini/` via pathspec on its own
- * commits, but that protection doesn't extend to the model driving git manually through bash).
- * A project that runs `git init` mid-session would otherwise happily stage mini's own session
- * log right into the user's first commit.
+ * A `.gitignore` dropped inside `.mini/` itself so session logs never show up in
+ * `git status`/`git add .` — for the model's own git commands, not just checkpointing's
+ * (which already excludes `.mini/` via pathspec on its own commits, but that protection
+ * doesn't extend to the model driving git manually through bash). A project that runs
+ * `git init` mid-session would otherwise happily stage mini's own session log right into
+ * the user's first commit.
+ *
+ * `tools/` is carved back out: dynamic tools written to `.mini/tools/` (see
+ * `tools/dynamic.ts`) are real project functionality, not session state, and are meant to
+ * be committed like any other source file.
  */
 async function ensureMiniGitignore(cwd: string): Promise<void> {
   try {
-    await writeFile(join(cwd, ".mini", ".gitignore"), "*\n", "utf-8");
+    await writeFile(join(cwd, ".mini", ".gitignore"), "*\n!tools/\n!tools/**\n", "utf-8");
   } catch {
     // best-effort — a session still works fine without this
   }

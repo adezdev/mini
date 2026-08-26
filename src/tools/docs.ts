@@ -6,6 +6,7 @@
 // ever supply to make this tool read anything outside this fixed set.
 import architectureDoc from "../../docs/architecture.md" with { type: "text" };
 import cliDoc from "../../docs/cli.md" with { type: "text" };
+import extendingDoc from "../../docs/extending.md" with { type: "text" };
 import gettingStartedDoc from "../../docs/getting-started.md" with { type: "text" };
 import guardrailsDoc from "../../docs/guardrails.md" with { type: "text" };
 import indexDoc from "../../docs/README.md" with { type: "text" };
@@ -32,7 +33,12 @@ const DOCS: Record<string, DocEntry> = {
     summary: "Every interactive /command.",
     content: replCommandsDoc,
   },
-  tools: { title: "Built-in Tools", summary: "The eight tools mini can call.", content: toolsDoc },
+  tools: { title: "Built-in Tools", summary: "The built-in tools mini can call.", content: toolsDoc },
+  extending: {
+    title: "Extending mini",
+    summary: "Add your own tools via .mini/tools/, no restart needed.",
+    content: extendingDoc,
+  },
   guardrails: {
     title: "Guardrails",
     summary: "Checkpointing, self-check, bash tripwires, the filesystem boundary.",

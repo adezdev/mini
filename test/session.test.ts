@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -45,7 +45,7 @@ test("listSessions returns saved sessions newest first", async () => {
   assert.ok(ids.indexOf(second.id) < ids.indexOf(first.id));
 });
 
-test("Session.create writes a .mini/.gitignore that keeps .mini/ out of git entirely", async () => {
+test("Session.create writes a .mini/.gitignore that keeps session state out of git, but carves out tools/", async () => {
   const repo = await mkdtemp(join(tmpdir(), "mini-session-gitignore-"));
   try {
     const git = (args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf-8" });
@@ -54,7 +54,7 @@ test("Session.create writes a .mini/.gitignore that keeps .mini/ out of git enti
     await Session.create(repo);
 
     const gitignore = await readFile(join(repo, ".mini", ".gitignore"), "utf-8");
-    assert.equal(gitignore, "*\n");
+    assert.equal(gitignore, "*\n!tools/\n!tools/**\n");
 
     const status = git(["status", "--porcelain"]);
     assert.equal(status.trim(), "");
@@ -62,6 +62,14 @@ test("Session.create writes a .mini/.gitignore that keeps .mini/ out of git enti
     git(["add", "-A"]);
     const staged = git(["status", "--porcelain"]);
     assert.equal(staged.trim(), "");
+
+    await mkdir(join(repo, ".mini", "tools"), { recursive: true });
+    await writeFile(join(repo, ".mini", "tools", "extra.ts"), "export default {};\n");
+    // -uall: a plain `git status` collapses a wholly-new directory into one line
+    // ("?? .mini/") regardless of what's ignored inside it — need the per-file listing to
+    // actually prove the carve-out unignored this specific file rather than the whole dir.
+    const toolStatus = git(["status", "--porcelain", "-uall"]);
+    assert.match(toolStatus, /\.mini\/tools\/extra\.ts/);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
