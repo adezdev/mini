@@ -56,7 +56,10 @@ export async function buildSystemPrompt(tools: AgentTool[], cwd: string): Promis
       "new tool is NOT available within the same reply you wrote it in — the tool list only " +
       "refreshes at the start of the next pass. It IS already there by the `[auto self-check]` " +
       "follow-up that fires right after, so don't fake-test it by re-implementing its logic inline " +
-      "in `bash`; just call it for real once you get that next turn.",
+      "in `bash`; just call it for real once you get that next turn. Don't sanity-check a `.ts` " +
+      "tool file with plain `node` either — mini loads it through Bun's TS transpiler, and Node " +
+      "will fail on a type annotation with a confusing syntax error that has nothing to do with " +
+      "whether the file actually works.",
   ];
 
   const projectInstructions = await loadProjectInstructions(cwd);

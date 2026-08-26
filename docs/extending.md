@@ -56,6 +56,21 @@ a tool file, the file exists on disk in time for the *next* pass (the
 self-check pass that follows a file-changing turn counts) to see it. You
 never need to restart the process.
 
+## Verifying a tool file before it's loaded
+
+Don't sanity-check a `.ts` tool file with plain `node --check` (or `node
+file.ts`) — Node's own parser doesn't understand TypeScript syntax and
+will fail on the first type annotation (e.g. `const tool: AgentTool = {`)
+with something like `SyntaxError: Missing initializer in const
+declaration`. That error is about Node, not your file — mini loads
+`.mini/tools/` through Bun's own runtime TS transpiler (same as it runs
+the rest of mini's own source), which handles a plain type annotation
+fine. Seeing a `node --check` failure on a `.ts` tool file is not evidence
+the file is broken; don't "fix" it by rewriting to JS in response to that
+error alone. If you want to verify it compiles/imports cleanly before
+relying on it, load it the same way mini does — `bun -e 'import("./.mini/tools/your-tool.ts").then(console.log)'`
+— rather than reaching for a checker mini itself doesn't use.
+
 ## Trust boundary
 
 A dynamic tool's `execute` runs with the same privilege as the `bash`
