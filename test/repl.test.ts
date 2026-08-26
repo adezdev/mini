@@ -221,6 +221,44 @@ test("runReplLoop: /model <id> switches the model without a network call", async
   assert.match(output, /Model set to vendor\/other-model/);
 });
 
+test("runReplLoop: /effort with no args reports unset by default", async () => {
+  const session = await Session.create(dir);
+  const config = testConfig();
+  const output = await runRepl(config, session, [{ role: "system", content: "sys" }], ["/effort", "/exit"]);
+  assert.equal(config.effort, undefined);
+  assert.match(output, /Effort: \(unset/);
+});
+
+test("runReplLoop: /effort <level> sets it and echoes it back on a bare /effort", async () => {
+  const session = await Session.create(dir);
+  const config = testConfig();
+  const output = await runRepl(
+    config,
+    session,
+    [{ role: "system", content: "sys" }],
+    ["/effort high", "/effort", "/exit"],
+  );
+  assert.equal(config.effort, "high");
+  assert.match(output, /Effort set to high/);
+  assert.match(output, /Effort: high/);
+});
+
+test("runReplLoop: /effort rejects an unknown level and leaves the current one unchanged", async () => {
+  const session = await Session.create(dir);
+  const config = testConfig({ effort: "low" });
+  const output = await runRepl(config, session, [{ role: "system", content: "sys" }], ["/effort extreme", "/exit"]);
+  assert.equal(config.effort, "low");
+  assert.match(output, /isn't a known effort level/);
+});
+
+test("runReplLoop: /effort off clears a previously set level", async () => {
+  const session = await Session.create(dir);
+  const config = testConfig({ effort: "high" });
+  const output = await runRepl(config, session, [{ role: "system", content: "sys" }], ["/effort off", "/exit"]);
+  assert.equal(config.effort, undefined);
+  assert.match(output, /Effort cleared/);
+});
+
 test("runReplLoop: a plain message runs a turn and streams the reply", async () => {
   mockFetch();
   const session = await Session.create(dir);

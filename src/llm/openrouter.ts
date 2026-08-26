@@ -79,10 +79,12 @@ export interface StreamChatCompletionOptions {
   messages: Message[];
   tools: AgentTool[];
   signal?: AbortSignal;
+  /** OpenRouter's unified reasoning.effort value — normalized per-provider, omitted (provider default) unless set. */
+  effort?: string;
 }
 
 export async function* streamChatCompletion(options: StreamChatCompletionOptions): AsyncGenerator<StreamEvent> {
-  const { apiKey, model, messages, tools, signal } = options;
+  const { apiKey, model, messages, tools, signal, effort } = options;
 
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
@@ -104,6 +106,7 @@ export async function* streamChatCompletion(options: StreamChatCompletionOptions
       // Only send it for Anthropic: other providers aren't guaranteed to
       // ignore an unrecognized top-level field.
       ...(model.startsWith("anthropic/") ? { cache_control: { type: "ephemeral" } } : {}),
+      ...(effort ? { reasoning: { effort } } : {}),
       stream: true,
       stream_options: { include_usage: true },
     }),

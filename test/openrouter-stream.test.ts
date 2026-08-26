@@ -201,3 +201,27 @@ test("omits cache_control for non-anthropic models", async () => {
   const body = JSON.parse((lastCall?.init.body as string) ?? "{}");
   assert.equal("cache_control" in body, false);
 });
+
+test("sends reasoning.effort when set, regardless of model", async () => {
+  mockFetchOnce(new Response(sseStream(["data: [DONE]\n\n"]), { status: 200 }));
+
+  const messages: Message[] = [{ role: "user", content: "hi" }];
+  for await (const _ of streamChatCompletion({ ...baseOptions, effort: "high", messages })) {
+    // drain
+  }
+
+  const body = JSON.parse((lastCall?.init.body as string) ?? "{}");
+  assert.deepEqual(body.reasoning, { effort: "high" });
+});
+
+test("omits the reasoning field when no effort is set", async () => {
+  mockFetchOnce(new Response(sseStream(["data: [DONE]\n\n"]), { status: 200 }));
+
+  const messages: Message[] = [{ role: "user", content: "hi" }];
+  for await (const _ of streamChatCompletion({ ...baseOptions, messages })) {
+    // drain
+  }
+
+  const body = JSON.parse((lastCall?.init.body as string) ?? "{}");
+  assert.equal("reasoning" in body, false);
+});

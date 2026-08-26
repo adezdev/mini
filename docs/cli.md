@@ -32,6 +32,7 @@ under `.mini/sessions/`, see [architecture.md](architecture.md)).
 | --- | --- |
 | `OPENROUTER_API_KEY` | Required. Get one at https://openrouter.ai/keys. |
 | `MINI_MODEL` | Default model id, used when `--model` isn't passed. Falls back to a free OpenRouter model if unset. |
+| `MINI_EFFORT` | Default reasoning-effort level (`minimal`/`low`/`medium`/`high`/`xhigh`/`none`), used when `/effort` hasn't been set this session. Unset by default — mini sends no `reasoning.effort` field at all unless asked. An invalid value is ignored, same as not setting it. See [repl-commands.md](repl-commands.md#effort). |
 | `MINI_MAX_TURNS` | Raise the agent loop's 30-turn safety cap for a single user turn (see [guardrails.md](guardrails.md#turn-cap)). |
 | `MINI_SELF_CHECK=0` | Disable the automatic self-check pass that follows a turn where mini changed files. See [guardrails.md](guardrails.md#self-check). |
 | `MINI_BASH_TRIPWIRES=0` | Disable the bash deny-list for unambiguously destructive commands. See [guardrails.md](guardrails.md#bash-tripwires). |

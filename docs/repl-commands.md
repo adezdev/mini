@@ -28,6 +28,26 @@ to a nonsense "model."
 Switch straight to a known model id — no fetch, no prompt. Same `/`-prefix
 rejection applies here too.
 
+## `/effort`
+
+Shows the current reasoning-effort level, or `(unset — using the model's own
+default)` if none is set.
+
+## `/effort <level>`
+
+Sets OpenRouter's unified `reasoning.effort` field for every request this
+session makes from here on: `minimal`, `low`, `medium`, `high`, `xhigh`, or
+`none`. OpenRouter normalizes this per-provider, so it's sent as-is
+regardless of which model you're on — an unsupported model is expected to
+just ignore it, same as any other reasoning-capable-only parameter. An
+unrecognized level is rejected with the list of valid ones rather than sent
+through blind.
+
+## `/effort off`
+
+Clears it (`clear`/`unset` also work) — back to not sending the field at
+all, i.e. whatever the model does by default.
+
 ## `/tools`
 
 Lists the built-in tools and their descriptions (see

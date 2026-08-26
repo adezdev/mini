@@ -21,6 +21,7 @@ In an interactive session:
   /help                          List interactive commands
   /model                         Pick a model from a live OpenRouter list
   /model <id>                    Switch to a model id directly
+  /effort <level>                Set reasoning effort (minimal/low/medium/high/xhigh/none/off)
   /tools                         List available tools
   /system                        Print the current system prompt
   /cost                          Show cumulative token usage and estimated $ cost
@@ -34,6 +35,7 @@ In an interactive session:
 Environment:
   OPENROUTER_API_KEY      required, get one at https://openrouter.ai/keys
   MINI_MODEL              optional default model override
+  MINI_EFFORT             default reasoning-effort level (minimal/low/medium/high/xhigh/none)
   MINI_MAX_TURNS          raise the 30-turn safety cap
   MINI_SELF_CHECK=0       disable the automatic self-check pass after file changes
   MINI_BASH_TRIPWIRES=0   disable the bash deny-list for unambiguously destructive commands

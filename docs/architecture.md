@@ -51,6 +51,14 @@ and Gemini/Qwen's caching needs per-content-block `cache_control` tags
 instead, a bigger restructuring not worth it without evidence those models
 are actually in use here.
 
+`streamChatCompletion` also accepts an optional `effort` string, sent as a
+top-level `reasoning: { effort }` field — OpenRouter's own unified param,
+normalized per-provider on their end, so mini sends it as-is rather than
+gating it to specific model prefixes the way `cache_control` is gated.
+Omitted entirely unless the REPL's `/effort` command (or `MINI_EFFORT`) set
+one; a model that doesn't support reasoning is expected to just ignore an
+unrecognized field, per how OpenRouter documents the parameter.
+
 Tool-call argument fragments arrive across many stream chunks, addressed by
 a stable **numeric `index`** — not `id`, which may only appear on the first
 chunk for that index. `ToolCallAccumulator` buffers per-index argument

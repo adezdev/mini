@@ -6,7 +6,7 @@ import { createInterface } from "node:readline/promises";
 import { runAgentLoop } from "./agent/loop.js";
 import type { Message } from "./agent/types.js";
 import { type CheckpointState, commitCheckpointIfDirty, initCheckpointing } from "./checkpoint.js";
-import type { Config } from "./config.js";
+import { type Config, isValidEffortLevel, VALID_EFFORT_LEVELS } from "./config.js";
 import { trimStaleToolOutput } from "./context-trim.js";
 import { fetchModels, formatModelLine, type ModelInfo, rankForPicker } from "./models.js";
 import { computeRefinement } from "./refine.js";
@@ -92,6 +92,7 @@ async function runPass(
     tools,
     cwd: config.cwd,
     maxTurns: config.maxTurns,
+    effort: config.effort,
     signal,
     onEvent(event) {
       switch (event.type) {
@@ -170,6 +171,7 @@ async function summarizeMessages(config: Config, messages: Message[]): Promise<s
     messages: scratch,
     tools: [],
     maxTurns: config.maxTurns,
+    effort: config.effort,
     onEvent(event) {
       if (event.type === "text_delta") summary += event.text;
     },
@@ -251,6 +253,9 @@ Commands:
   /help              Show this list
   /model             Pick a model from a live OpenRouter list
   /model <id>        Switch to a model id directly
+  /effort            Show the current reasoning-effort level
+  /effort <level>    Set it (minimal, low, medium, high, xhigh, none)
+  /effort off        Clear it (use the model's own default)
   /tools             List available tools
   /system            Print the current system prompt
   /cost              Show cumulative token usage and estimated $ cost
@@ -380,6 +385,26 @@ export async function runReplLoop(config: Config, messages: Message[], session: 
           await pickModel(config, rl, arg || undefined);
         } catch (err) {
           console.error(`\x1b[31mError: ${(err as Error).message}\x1b[0m`);
+        }
+        continue;
+      }
+
+      if (trimmed === "/effort" || trimmed.startsWith("/effort ")) {
+        const arg = trimmed.slice("/effort".length).trim().toLowerCase();
+        if (!arg) {
+          console.log(
+            config.effort ? `\nEffort: ${config.effort}\n` : "\nEffort: (unset — using the model's own default)\n",
+          );
+        } else if (arg === "off" || arg === "clear" || arg === "unset") {
+          config.effort = undefined;
+          console.log("\x1b[2mEffort cleared — using the model's own default.\x1b[0m\n");
+        } else if (isValidEffortLevel(arg)) {
+          config.effort = arg;
+          console.log(`\x1b[2mEffort set to ${arg}.\x1b[0m\n`);
+        } else {
+          console.log(
+            `\x1b[31m"${arg}" isn't a known effort level — one of: ${VALID_EFFORT_LEVELS.join(", ")}.\x1b[0m\n`,
+          );
         }
         continue;
       }

@@ -5,6 +5,7 @@ import { ConfigError, DEFAULT_MAX_TURNS, DEFAULT_MODEL, loadConfig } from "../sr
 const originalApiKey = process.env.OPENROUTER_API_KEY;
 const originalModel = process.env.MINI_MODEL;
 const originalMaxTurns = process.env.MINI_MAX_TURNS;
+const originalEffort = process.env.MINI_EFFORT;
 
 afterEach(() => {
   if (originalApiKey === undefined) delete process.env.OPENROUTER_API_KEY;
@@ -13,6 +14,8 @@ afterEach(() => {
   else process.env.MINI_MODEL = originalModel;
   if (originalMaxTurns === undefined) delete process.env.MINI_MAX_TURNS;
   else process.env.MINI_MAX_TURNS = originalMaxTurns;
+  if (originalEffort === undefined) delete process.env.MINI_EFFORT;
+  else process.env.MINI_EFFORT = originalEffort;
 });
 
 test("throws a ConfigError when OPENROUTER_API_KEY is not set", () => {
@@ -63,4 +66,22 @@ test("an invalid MINI_MAX_TURNS falls back to the default rather than NaN/0", ()
     process.env.MINI_MAX_TURNS = bad;
     assert.equal(loadConfig().maxTurns, DEFAULT_MAX_TURNS);
   }
+});
+
+test("effort is unset by default", () => {
+  process.env.OPENROUTER_API_KEY = "sk-test";
+  delete process.env.MINI_EFFORT;
+  assert.equal(loadConfig().effort, undefined);
+});
+
+test("MINI_EFFORT sets the default effort level, case-insensitively", () => {
+  process.env.OPENROUTER_API_KEY = "sk-test";
+  process.env.MINI_EFFORT = "HIGH";
+  assert.equal(loadConfig().effort, "high");
+});
+
+test("an invalid MINI_EFFORT is ignored rather than passed through", () => {
+  process.env.OPENROUTER_API_KEY = "sk-test";
+  process.env.MINI_EFFORT = "extreme";
+  assert.equal(loadConfig().effort, undefined);
 });

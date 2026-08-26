@@ -22,6 +22,8 @@ export interface RunAgentLoopOptions {
   onEvent: (event: LoopEvent) => void;
   signal?: AbortSignal;
   maxTurns?: number;
+  /** OpenRouter's unified reasoning.effort value, passed straight through to every request this loop makes. */
+  effort?: string;
 }
 
 /**
@@ -40,6 +42,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<void> 
     signal,
     maxTurns = DEFAULT_MAX_TURNS,
     cwd = process.cwd(),
+    effort,
   } = options;
   const registry = new Map(tools.map((t) => [t.name, t]));
 
@@ -47,7 +50,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<void> 
     const assistantContent: AssistantContent[] = [];
     let currentText = "";
 
-    for await (const event of streamChatCompletion({ apiKey, model, messages, tools, signal })) {
+    for await (const event of streamChatCompletion({ apiKey, model, messages, tools, signal, effort })) {
       switch (event.type) {
         case "text_delta":
           currentText += event.text;
