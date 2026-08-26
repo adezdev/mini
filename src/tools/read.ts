@@ -8,6 +8,21 @@ import { resolveInRoot } from "./path-guard.js";
 const MAX_LINES = 2000;
 const MAX_BYTES = 256 * 1024;
 
+/**
+ * The schema says `number`, but nothing enforces that a model actually sends
+ * one — a garbled value (observed in the wild: a stray tool-call fragment
+ * leaking into the arg) coerces through `Math.max`/array slicing into NaN,
+ * which silently produces an empty read instead of an error the model can
+ * act on. Reject it explicitly instead.
+ */
+function toOptionalNumber(value: unknown, name: string): { ok: true; value?: number } | { ok: false; error: string } {
+  if (value === undefined) return { ok: true };
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return { ok: false, error: `${name} must be a number, got ${JSON.stringify(value)?.slice(0, 100)}.` };
+  }
+  return { ok: true, value };
+}
+
 export const readTool: AgentTool = {
   name: "read",
   description:
@@ -22,7 +37,12 @@ export const readTool: AgentTool = {
     },
     required: ["path"],
   },
-  async execute(args: { path: string; offset?: number; limit?: number }, cwd: string) {
+  async execute(args: { path: string; offset?: unknown; limit?: unknown }, cwd: string) {
+    const offsetArg = toOptionalNumber(args.offset, "offset");
+    if (!offsetArg.ok) return { content: offsetArg.error, isError: true };
+    const limitArg = toOptionalNumber(args.limit, "limit");
+    if (!limitArg.ok) return { content: limitArg.error, isError: true };
+
     const guarded = resolveInRoot(cwd, args.path);
     if (!guarded.ok) return { content: guarded.error, isError: true };
     const filePath = guarded.path;
@@ -38,8 +58,8 @@ export const readTool: AgentTool = {
 
     const lines = splitLines(raw);
     const totalLines = lines.length;
-    const offset = Math.max(1, args.offset ?? 1);
-    const limit = Math.min(args.limit ?? MAX_LINES, MAX_LINES);
+    const offset = Math.max(1, offsetArg.value ?? 1);
+    const limit = Math.min(limitArg.value ?? MAX_LINES, MAX_LINES);
 
     let sliceLines = lines.slice(offset - 1, offset - 1 + limit);
     let byteCount = 0;

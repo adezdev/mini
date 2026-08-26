@@ -27,6 +27,18 @@ test("offset/limit returns a slice with a continuation trailer", async () => {
   assert.equal(result.content, "2\ttwo\n[Showing lines 2-2 of 3. Use offset=3 to continue.]");
 });
 
+test("rejects a garbled non-numeric offset instead of silently returning an empty read", async () => {
+  const result = await readTool.execute({ path: "small.txt", offset: "80\n<parameter=limit>\n60" }, dir);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /offset must be a number/);
+});
+
+test("rejects a non-numeric limit the same way", async () => {
+  const result = await readTool.execute({ path: "small.txt", limit: "lots" }, dir);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /limit must be a number/);
+});
+
 test("a file within the line limit but over the byte cap is truncated with a continuation trailer", async () => {
   // 2000 lines * ~200 bytes/line ~= 400KB, well over the 256KB byte cap, so this
   // exercises the byte-cutoff path even though it's under MAX_LINES.
